@@ -1,0 +1,40 @@
+name: gan-ensemble
+channels:
+- pytorch
+- defaults
+- nvidia
+dependencies:
+- python=3.10
+- cudatoolkit=11.6
+- pip:
+    - torch
+    - torchaudio
+    - tqdm
+    - ninja
+    - h5py
+    - kornia
+    - matplotlib
+    - pandas
+    - sklearn
+    - scipy
+    - seaborn
+    - wandb
+    - PyYaml
+    - click
+    - requests
+    - pyspng
+    - imageio-ffmpeg
+    - timm
+    - opencv-python
+    - medmnist
+    - numpy
+    - pandas
+    - plotly
+    - optuna
+    - ipython
+    - pillow
+    - openpyxl
+    - natsort
+    - pydicom
+    - bokeh
+    - umap-learn

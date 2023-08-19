@@ -1,0 +1,14 @@
+SEED: 42
+DATA:
+  data_dir: ./data/raw/pneumoniamnist
+  name: "pneumoniamnist"
+  img_size: 32
+  num_classes: 2
+  img_channels: 1
+
+PRE:
+  crop_long_edge: True
+  resize_size: 32
+  pre_resizer: "lanczos"
+  normalize: True
+  apply_rflip: False

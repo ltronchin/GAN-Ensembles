@@ -1,0 +1,7 @@
+# Project exclude paths
+/data/
+/materials/
+/misc/
+/obs_code/
+/obs_reports/
+/reports/
