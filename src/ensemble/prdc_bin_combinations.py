@@ -161,6 +161,8 @@ if __name__ == '__main__':
             df_new = pd.DataFrame([new_row])
             df = pd.concat([df, df_new], ignore_index=True)
 
+            df.to_excel(os.path.join(cache_dir, f'{filename}.xlsx'), index=False)
+
             pbar.update(1)
 
     df.to_excel(os.path.join(cache_dir, f'{filename}.xlsx'), index=False)

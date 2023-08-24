@@ -46,6 +46,7 @@ def get_parser():
     parser.add_argument('--samples_dir', type=str, default='./reports/pneumoniamnist',  help='Directory name to fake samples.')
     parser.add_argument('--gan_models', type=util_general.parse_comma_separated_list, default='StyleGAN2-ADA', help='List of GANs to enable in the ensemble')
     parser.add_argument('--gan_steps', type=util_general.parse_comma_separated_list, default='100000', help='Epoch or Epochs to sample each GAN')
+    parser.add_argument('--gan_models_steps', type=util_general.parse_comma_separated_list, default=None, help='Combinations models_steps.')
     parser.add_argument('--init_w', type=str, default='uniform', choices=['uniform', 'random', 'fid'],    help='Weight initialization')
     parser.add_argument('--n_times', type=int, default=1, help='Number of times of training real dataset.')
 
@@ -78,8 +79,13 @@ if __name__ == "__main__":
     batch_size = cfg['TRAINER']['batch_size']
 
     # Parameters GAN.
-    gan_models = args.gan_models
-    gan_steps = args.gan_steps
+    gan_models_steps = args.gan_models_steps
+    if len(gan_models_steps) != 0:
+        gan_models = [x.split('_')[0] for x in gan_models_steps]
+        gan_steps = [x.split('_')[1] for x in gan_models_steps]
+    else:
+        gan_models = args.gan_models
+        gan_steps = args.gan_steps
     init_w = args.init_w
     n_times = args.n_times
     real_flag = args.real_flag
