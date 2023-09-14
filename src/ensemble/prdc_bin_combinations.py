@@ -89,8 +89,15 @@ if __name__ == '__main__':
         device=device
     )
 
-    df = pd.DataFrame(columns=['folder0', 'folder1', 'gan0', 'gan1', 'step0', 'step1', 'time', 'fid'])
     tot_comb = len(list(combinations(gan_folders, 2)))
+
+    # Check if df already exist on the disk.
+    try:
+        df = pd.read_excel(os.path.join(cache_dir, f'{filename}.xlsx'))
+        print('Loaded.')
+    except FileNotFoundError:
+        df = pd.DataFrame(columns=['folder0', 'folder1', 'gan0', 'gan1', 'step0', 'step1', 'time', 'fid'])
+
     # Main cycle.
     with tqdm(total=tot_comb) as pbar:
         for gan_comb in combinations(gan_folders, 2):
@@ -100,6 +107,15 @@ if __name__ == '__main__':
             print("\n")
             print(gan_comb[0], 'vs', gan_comb[1])
 
+            # Check if the current combination already exist in df.
+            if df.loc[(df['folder0'] == gan_comb[0]) & (df['folder1'] == gan_comb[1])].shape[0] > 0:
+                print('Already computed.')
+                print(len(df))
+                pbar.update(1)
+
+                continue
+
+            print("Computing prdc...")
             tik = time.time()
             # Dataset
             gan0_dataset = util_data.EnsembleDataset(folders=[gan_comb[0]], weights=[1.0])
@@ -135,7 +151,6 @@ if __name__ == '__main__':
             )
 
             # Compute prdc.
-            print("Computing prdc...")
             prc, rec, dns, cvg =  prdc.calculate_pr_dc(
                 real_feats=stats1.get_all(),
                 fake_feats=stats0.get_all(),

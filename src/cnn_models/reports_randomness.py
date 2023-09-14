@@ -7,6 +7,7 @@ import pandas as pd
 import os
 import argparse
 import re
+import numpy as np
 
 from src.general_utils import util_general
 from src.general_utils import util_path
@@ -36,10 +37,11 @@ if __name__ == "__main__":
     }
 
     # Create an empty dataframe with the desired columns
-    columns = ["folder", "gan", "step", "ACC"]
+    columns = ["folder", "gan", "step", "ACC", "std ACC"]
     for dataset, classes in dataset_classes.items():
         for cls in classes:
             columns.append(f"ACC {cls}")
+            columns.append(f"std ACC {cls}")
     df = pd.DataFrame(columns=columns)
 
     pattern = rf"{dataset_name}-(?P<gan>.+?)-(?P<step>\d+(?:,\d+)*)"
@@ -61,22 +63,26 @@ if __name__ == "__main__":
                     "folder": folder,
                     "gan": gan,
                     "step": step,
-                    "ACC": results_df["ACC"].iloc[0]
+                    "ACC": results_df["ACC"].iloc[np.where(results_df == 'mean')[0][0]],
+                    "std ACC": results_df["ACC"].iloc[np.where(results_df == 'std')[0][0]]
                 }
             else:
                 data = {
                     "folder": folder,
                     "gan": "",
                     "step": "",
-                    "ACC": results_df["ACC"].iloc[0]
+                    "ACC": results_df["ACC"].iloc[np.where(results_df == 'mean')[0][0]],
+                    "std ACC": results_df["ACC"].iloc[np.where(results_df == 'std')[0][0]]
                 }
 
             for cls in dataset_classes[dataset_name]:
-                data[f"ACC {cls}"] = results_df[f"ACC {cls}"].iloc[0]
+                data[f"ACC {cls}"] = results_df[f"ACC {cls}"].iloc[np.where(results_df == 'mean')[0][0]]
+                data[f"std ACC {cls}"] = results_df[f"ACC {cls}"].iloc[np.where(results_df == 'std')[0][0]]
 
             # Append to the main dataframe
             df.loc[len(df)] = data
-        except:
+        except Exception as e:
+            print(e)
             print("ERROR in folder:")
             print(folder)
             continue

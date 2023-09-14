@@ -1,0 +1,12 @@
+DATA:
+  name: "retinamnist"
+  img_size: 32
+  num_classes: 5
+  img_channels: 3
+MODEL:
+  g_cond_mtd: "cBN"
+  d_cond_mtd: "AC"
+  aux_cls_type: "ADC"
+LOSS:
+  adv_loss: "hinge"
+  cond_lambda: 1.0

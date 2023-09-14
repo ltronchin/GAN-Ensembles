@@ -65,7 +65,7 @@ def train(model, train_loader, criterion, optimizer, device, batch_size, n_sampl
     epoch_loss = sum(total_loss) / len(total_loss)
     return epoch_loss
 
-def train_model(model, data_loaders, criterion, optimizer, scheduler, num_epochs, early_stopping, model_dir, device, class_real=None, n_samples=None):
+def train_model(model, data_loaders, criterion, optimizer, scheduler, num_epochs, early_stopping, model_dir, device, class_real=None, n_samples=None, to_disk=True):
     since = time.time()
 
     best_model_wts = copy.deepcopy(model.state_dict())
@@ -173,7 +173,8 @@ def train_model(model, data_loaders, criterion, optimizer, scheduler, num_epochs
     model.load_state_dict(best_model_wts)
 
     # Save model
-    torch.save(model.state_dict(), os.path.join(model_dir, f"model_best_epoch_{best_epoch}.pt"))
+    if to_disk:
+        torch.save(model.state_dict(), os.path.join(model_dir, f"model_best_epoch_{best_epoch}.pt"))
 
     # Format history
     history = pd.DataFrame.from_dict(history, orient='index').transpose()
@@ -219,7 +220,7 @@ def evaluate(dataset_name, model, data_loader, device):
 
     return test_results
 
-def plot_training(history, plot_training_dir):
+def plot_training(history, plot_training_dir, plot_name_loss='Loss', plot_name_acc='Acc'):
 
     # Training results Loss function
     if 'train_loss' in history.columns and 'val_loss' in history.columns:
@@ -230,9 +231,10 @@ def plot_training(history, plot_training_dir):
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
         plt.title('Training and Validation Losses')
+
         # Delete white space
         plt.tight_layout()
-        plt.savefig(os.path.join(plot_training_dir, "Loss.pdf"),  dpi=400, format='pdf')
+        plt.savefig(os.path.join(plot_training_dir, f"{plot_name_loss}.pdf"),  dpi=400, format='pdf')
         plt.show()
 
     # Training results Accuracy
@@ -244,7 +246,8 @@ def plot_training(history, plot_training_dir):
         plt.xlabel('Epoch')
         plt.ylabel('Average Accuracy')
         plt.title('Training and Validation Accuracy')
+
         # Delete white space
         plt.tight_layout()
-        plt.savefig(os.path.join(plot_training_dir, "Acc.pdf"),  dpi=400, format='pdf')
+        plt.savefig(os.path.join(plot_training_dir, f"{plot_name_acc}.pdf"),  dpi=400, format='pdf')
         plt.show()

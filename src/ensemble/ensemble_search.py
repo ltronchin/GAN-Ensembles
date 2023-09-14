@@ -32,6 +32,7 @@ def get_parser():
 
     parser.add_argument('--fitness_summary_flag', type=str, default='mean', choices=['div', 'mean'])
     parser.add_argument('--fitness_name', type=str, default='fid', choices=['fid', 'prdc'])
+    parser.add_argument('--cost_name', type=str, default='ratio', choices=['diff', 'ratio', 'inter', 'intra'])
     parser.add_argument('--n_trial', type=int, default=50)
     parser.add_argument('--split', type=str, default='train', choices=['train', 'val'])
 
@@ -60,6 +61,7 @@ if __name__ == '__main__':
     fitness_summary_flag = args.fitness_summary_flag
     n_trial = args.n_trial
     split = args.split
+    cost_name = args.cost_name
 
     filename = f'ensemble_search_{fitness_name}-step_{gan_steps[0]}-summary_{fitness_summary_flag}-trial_{n_trial}-{eval_backbone}_{post_resizer}_{n_samples}'
     ensemble_dir = os.path.join(reports_dir, filename)
@@ -86,6 +88,7 @@ if __name__ == '__main__':
         search_space=search_space,
         fitness_name=fitness_name,
         summary_flag=fitness_summary_flag,
+        cost_name=cost_name,
         data_synth=df_synth,
         data_real=df_real
     )

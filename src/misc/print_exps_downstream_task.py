@@ -30,7 +30,7 @@ with open(os.path.join(output_dir, filename), "w") as file:
     for step in gan_steps_options:
         file.write(f"dataset_name='pneumoniamnist' gan_models='{all_models}' gan_steps='{step}'\n")
 
-    # 4. Tall GANs-steps for a fixed model (22 exps)
+    # 4. all GANs-steps for a fixed model (22 exps)
     for model in gan_models_options:
         file.write(f"dataset_name='pneumoniamnist' gan_models='{model}' gan_steps='{all_steps}'\n")
 
