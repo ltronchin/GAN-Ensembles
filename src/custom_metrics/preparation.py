@@ -66,7 +66,7 @@ class LoadEvalModel(object):
                     raise ModuleNotFoundError
 
             if self.eval_backbone == "SwAV_torch":
-                linear_state_dict = load_state_dict_from_url(SWAV_CLASSIFIER_URL, progress=True)["state_dict"]
+                linear_state_dict = load_state_dict_from_url(SWAV_CLASSIFIER_URL, progress=True, map_location=self.device)["state_dict"]
                 linear_state_dict = {k.replace("module.linear.", ""): v for k, v in linear_state_dict.items()}
                 self.model.fc.load_state_dict(linear_state_dict, strict=True)
             self.model = self.model.to(self.device)
@@ -86,7 +86,7 @@ class LoadEvalModel(object):
             self.res = 32
             input_dim = (1, 32, 32)
             self.model = util_autoencoder.get_img_autoencoder(model_name='resnet_ae_50', input_dim=input_dim, h_dim=None, n_classes=1)
-            self.model.load_state_dict(torch.load(os.path.join(source_dir, "pneumoniamnist-resnet_ae_50-train-2023_08_06_07_26_06", "model_best_epoch_17.pt")))
+            self.model.load_state_dict(torch.load(os.path.join(source_dir, "pneumoniamnist-resnet_ae_50-train-2023_08_06_07_26_06", "model_best_epoch_17.pt"),map_location=self.device ))
             self.model = self.model.to(self.device)
         elif self.eval_backbone == 'disc_resnet_50_pneumoniamnist':
             from src.cnn_models.models import ResNet50
@@ -96,7 +96,7 @@ class LoadEvalModel(object):
             input_dim = (1, 32, 32)
             n_classes = 111
             self.model = ResNet50(in_channels=input_dim[0], num_classes=n_classes)
-            self.model.load_state_dict(torch.load(os.path.join(source_dir, "pneumoniamnist-disc_resnet_50-train-2023_08_08_11_32_43", "model_best_epoch_2.pt")))
+            self.model.load_state_dict(torch.load(os.path.join(source_dir, "pneumoniamnist-disc_resnet_50-train-2023_08_08_11_32_43", "model_best_epoch_2.pt"),map_location=self.device))
             self.model = self.model.to(self.device)
         elif self.eval_backbone == 'cnn_resnet_50_pneumoniamnist':
             from src.cnn_models.models import ResNet50
@@ -106,7 +106,7 @@ class LoadEvalModel(object):
             input_dim = (1, 32, 32)
             n_classes = 2
             self.model = ResNet50(in_channels=input_dim[0], num_classes=n_classes)
-            self.model.load_state_dict(torch.load(os.path.join(source_dir, "pneumoniamnist-cnn_resnet_50-train-2023_08_16_15_35_41",  "model_best_epoch_5.pt")))
+            self.model.load_state_dict(torch.load(os.path.join(source_dir, "pneumoniamnist-cnn_resnet_50-train-2023_08_16_15_35_41",  "model_best_epoch_5.pt"),map_location=self.device ))
             self.model = self.model.to(self.device)
         else:
             raise NotImplementedError

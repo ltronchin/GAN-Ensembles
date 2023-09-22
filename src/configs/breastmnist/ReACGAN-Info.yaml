@@ -32,7 +32,6 @@ LOSS:
   temperature: 0.5
   infoGAN_loss_discrete_lambda: 1.0
 OPTIMIZATION:
-  batch_size: 128
   g_lr: 0.00028284271
   d_lr: 0.00028284271
   beta1: 0.0

@@ -78,10 +78,7 @@ def get_inter_metric(search_space, fitness_name, summary_flag, **kwargs):
     else:
         raise ValueError(f'Unknown summary flag: {summary_flag}')
 
-    if fitness_name == 'fid':
-        return fitness_value
-    else:
-        raise NotImplementedError
+    return fitness_value
 
 def get_intra_metric(search_space, fitness_name, summary_flag, **kwargs):
 
@@ -125,10 +122,7 @@ def get_intra_metric(search_space, fitness_name, summary_flag, **kwargs):
     else:
         raise ValueError(f'Unknown summary flag: {summary_flag}')
 
-    if fitness_name == 'fid':
-        return fitness_value
-    else:
-        raise NotImplementedError
+    return fitness_value
 
 def objective(trial, search_space, fitness_name, summary_flag, cost_name, **kwargs):
 

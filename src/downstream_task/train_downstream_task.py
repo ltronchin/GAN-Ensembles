@@ -24,12 +24,15 @@ from src.general_utils import util_ensemble
 
 from src.general_utils.util_data import EnsembleDataset
 
-RUN_NAME_FORMAT = ("{data_name}-" "{gan_models}-" "{gan_steps}-" "{n_times}-" "{timestamp}")
+RUN_NAME_FORMAT = ("{data_name}-" "{gan_models}-" "{gan_steps}-" "{metric_name}-" "{cost_name}-" "{backbone}-" "{n_times}-" "{timestamp}")
 
-def make_run_name(format, data_name, gan_models, gan_steps, n_times):
+def make_run_name(format, data_name, gan_models, gan_steps, metric_name=None, cost_name=None, backbone=None, n_times=1):
     return format.format(data_name=data_name,
                          gan_models=gan_models,
                          gan_steps=gan_steps,
+                         metric_name=metric_name,
+                         cost_name=cost_name,
+                         backbone=backbone,
                          n_times=f'n_times-{n_times}',
                          timestamp=datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
 def get_parser():
@@ -109,13 +112,37 @@ if __name__ == "__main__":
             n_times=1,
         )
     else:
-        run_name = make_run_name(
-            RUN_NAME_FORMAT,
-            data_name=dataset_name,
-            gan_models='all' if len(gan_models)==22 else util_general.parse_separated_list_comma(gan_models),
-            gan_steps=util_general.parse_separated_list_comma(gan_steps),
-            n_times=n_times,
-        )
+        # One GAN
+        if len(gan_models) == 1:
+            run_name = make_run_name(
+                RUN_NAME_FORMAT,
+                data_name=dataset_name,
+                gan_models=util_general.parse_separated_list_comma(gan_models),
+                gan_steps=util_general.parse_separated_list_comma(gan_steps),
+                n_times=n_times,
+            )
+        elif len(gan_models) == 22:
+            # All GANs
+            run_name = make_run_name(
+                RUN_NAME_FORMAT,
+                data_name=dataset_name,
+                gan_models='all',
+                gan_steps=util_general.parse_separated_list_comma(gan_steps),
+                n_times=n_times,
+            )
+        else:
+            # Ensembles
+            run_name = make_run_name(
+                RUN_NAME_FORMAT,
+                data_name=dataset_name,
+                gan_models=util_general.parse_separated_list_comma(gan_models),
+                gan_steps=util_general.parse_separated_list_comma(gan_steps),
+                metric_name=fitness_name,
+                cost_name=cost_name,
+                backbone=eval_backbone,
+                n_times=n_times,
+            )
+
     report_dir = os.path.join(save_dir, 'downstream_task', run_name)
     util_path.create_dir(report_dir)
 
@@ -210,6 +237,7 @@ if __name__ == "__main__":
         scheduler=scheduler,
         num_epochs=cfg['TRAINER']['max_epochs'],
         early_stopping=cfg['TRAINER']['early_stopping'],
+        warmup_epoch=cfg['TRAINER']['warmup_epoch'],
         model_dir=report_dir,
         device=device,
         n_samples=n_samples,

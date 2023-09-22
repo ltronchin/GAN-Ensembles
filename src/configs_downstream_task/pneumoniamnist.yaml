@@ -25,4 +25,5 @@ TRAINER:
     mode: min
     patience: 5 # if the validation loss do not improve for x epochs, the scheduler reduces the learning rate (lr*10^-1)
   early_stopping: 25 # if the validation loss do not improve for x epochs stop training
+  warmup_epoch: 25 # number of epochs to warmup (lr*10^-1)
   max_epochs: 100

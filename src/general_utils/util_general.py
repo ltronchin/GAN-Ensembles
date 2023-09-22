@@ -156,8 +156,6 @@ def seed_all(seed): # for deterministic behaviour
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-
-
 def maybe_min(a: int, b: Optional[int]) -> int:
     if b is not None:
         return min(a, b)

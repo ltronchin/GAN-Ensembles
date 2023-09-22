@@ -160,6 +160,7 @@ if __name__ == "__main__":
         scheduler=scheduler,
         num_epochs=cfg['TRAINER']['max_epochs'],
         early_stopping=cfg['TRAINER']['early_stopping'],
+        warmup_epoch = cfg['TRAINER']['warmup_epoch'],
         model_dir=report_dir,
         device=device,
         n_samples=n_samples,

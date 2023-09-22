@@ -65,7 +65,7 @@ def train(model, train_loader, criterion, optimizer, device, batch_size, n_sampl
     epoch_loss = sum(total_loss) / len(total_loss)
     return epoch_loss
 
-def train_model(model, data_loaders, criterion, optimizer, scheduler, num_epochs, early_stopping, model_dir, device, class_real=None, n_samples=None, to_disk=True):
+def train_model(model, data_loaders, criterion, optimizer, scheduler, num_epochs, early_stopping, warmup_epoch, model_dir, device, class_real=None, n_samples=None, to_disk=True):
     since = time.time()
 
     best_model_wts = copy.deepcopy(model.state_dict())
@@ -149,18 +149,20 @@ def train_model(model, data_loaders, criterion, optimizer, scheduler, num_epochs
 
             # deep copy the model
             if phase == 'val':
-                if epoch_loss < best_loss:
-                    best_epoch = epoch
-                    best_loss = epoch_loss
-                    best_model_wts = copy.deepcopy(model.state_dict())
-                    epochs_no_improve = 0
-                else:
-                    epochs_no_improve += 1
-                    # Trigger early stopping
-                    if epochs_no_improve >= early_stopping:
-                        print(f'\nEarly Stopping! Total epochs: {epoch}%')
-                        early_stop = True
-                        break
+
+                if epoch > warmup_epoch:
+                    if epoch_loss < best_loss:
+                        best_epoch = epoch
+                        best_loss = epoch_loss
+                        best_model_wts = copy.deepcopy(model.state_dict())
+                        epochs_no_improve = 0
+                    else:
+                        epochs_no_improve += 1
+                        # Trigger early stopping
+                        if epochs_no_improve >= early_stopping:
+                            print(f'\nEarly Stopping! Total epochs: {epoch}%')
+                            early_stop = True
+                            break
         if early_stop:
             break
 
@@ -199,14 +201,18 @@ def evaluate(dataset_name, model, data_loader, device):
     classes_name = list(idx_to_class.values())
     correct_pred = {classname: 0 for classname in classes_name + ["all"]}
     total_pred = {classname: 0 for classname in classes_name + ["all"]}
+    labels_list = []
+    preds_list = []
     model.eval()
     with torch.no_grad():
         for inputs, labels in tqdm(data_loader):
             inputs = inputs.to(device)
             labels = labels.to(device)
+            labels_list.append(labels.cpu().numpy())
             # Prediction
             outputs = model(inputs.float())
             _, preds = torch.max(outputs, 1)
+            preds_list.append(preds.cpu().numpy())
             # global
             correct_pred['all'] += (preds == labels).sum().item()
             total_pred['all'] += labels.size(0)
@@ -215,10 +221,49 @@ def evaluate(dataset_name, model, data_loader, device):
                 if label == prediction:
                     correct_pred[idx_to_class[label.item()]] += 1
                 total_pred[idx_to_class[label.item()]] += 1
+
+    labels_list = np.concatenate(labels_list)
+    preds_list = np.concatenate(preds_list)
+
     # Accuracy
     test_results = {k: correct_pred[k]/total_pred[k] for k in correct_pred.keys() & total_pred}
 
+    test_results = compute_metrics(test_results, labels_list, preds_list, keys=['recall', 'precision', 'f1_score', 'specificity', 'geometric_mean', 'auc'])
+
     return test_results
+
+def compute_metrics(data, label, pred, keys=None):
+    from sklearn.metrics import confusion_matrix
+    from sklearn.metrics import roc_auc_score
+    import math
+    if keys is None:
+        keys = ['acc', 'recall', 'precision', 'f1_score', 'specificity', 'geometric_mean', 'auc']
+
+    # Conf matrix
+    #    predicted
+    #    TN     FP
+    #
+    #    FN     TP
+
+    conf_mat = confusion_matrix(label, pred)
+    tn, fp, fn, tp = conf_mat.ravel()
+
+    if 'acc' in keys:
+        data['acc'] = (tp + tn) / (tp + tn + fp + fn)
+    if 'recall' in keys:
+        data['recall'] = tp / (tp + fn)
+    if 'precision' in keys:
+        data['precision'] = tp / (tp + fp)
+    if 'f1_score' in keys:
+        data['f1_score'] = (2 * data['recall'] * data['precision']) /  (data['recall'] + data['precision'])
+    if 'specificity' in keys:
+        data['specificity'] = tn / (tn + fp)
+    if 'geometric_mean' in keys:
+        data['geometric_mean'] = math.sqrt(data['recall'] * data['specificity'])
+    if 'auc' in keys:
+        data['auc'] = roc_auc_score(label, pred)
+
+    return data
 
 def plot_training(history, plot_training_dir, plot_name_loss='Loss', plot_name_acc='Acc'):
 
