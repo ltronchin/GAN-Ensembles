@@ -226,7 +226,10 @@ def load_worker(local_rank, cfgs, gpus_per_node, run_name, hdf5_path):
     # -----------------------------------------------------------------------------
     if cfgs.RUN.ckpt_dir is not None:
         if local_rank == 0:
-            os.remove(join(cfgs.RUN.save_dir, "logs", run_name + ".log"))
+            try:
+                os.remove(join(cfgs.RUN.save_dir, "logs", run_name + ".log"))
+            except FileNotFoundError:
+                pass
         run_name, step, epoch, topk, aa_p, best_step, best_fid, best_ckpt_path, lecam_emas, logger =\
             ckpt.load_StudioGAN_ckpts(ckpt_dir=cfgs.RUN.ckpt_dir,
                                       load_best=cfgs.RUN.load_best,

@@ -59,7 +59,7 @@ def get_parser():
     parser.add_argument('--fitness_name', type=str, default=None)
     parser.add_argument('--cost_name', type=str, default=None)
     parser.add_argument('--eval_backbone', type=str, default=None)
-    parser.add_argument('--n_times', type=int, default=5, help='Number of times of training real dataset.')
+    parser.add_argument('--n_times', type=int, default=1, help='Number of times of training real dataset.')
 
     return parser
 
@@ -79,7 +79,7 @@ if __name__ == "__main__":
     save_dir = args.save_dir
     data_dir = cfg['DATA']['data_dir']
     samples_dir = args.samples_dir
-    folder_name = 'downstream_task_randomness_warmup_weighted_times5' # 'downstream_task_randomness_warmup_weighted' # 'downstream_task_randomness_warmup'
+    folder_name = 'downstream_task_randomness_warmup_weighted'
 
     gpu_ids = int(args.gpu_ids)
     num_workers = args.num_workers
@@ -125,6 +125,8 @@ if __name__ == "__main__":
             gan_steps='real',
             n_times=1,
         )
+        report_dir = os.path.join(save_dir, f'{folder_name}', run_name)
+        util_path.create_dir(report_dir)
     else:
         # One GAN
         if len(gan_models) == 1:
@@ -135,6 +137,8 @@ if __name__ == "__main__":
                 gan_steps=util_general.parse_separated_list_comma(gan_steps),
                 n_times=n_times,
             )
+            report_dir = os.path.join(save_dir, f'{folder_name}', run_name)
+            util_path.create_dir(report_dir)
         elif len(gan_models) == 22:
             # All GANs
             run_name = make_run_name(
@@ -144,21 +148,31 @@ if __name__ == "__main__":
                 gan_steps=util_general.parse_separated_list_comma(gan_steps),
                 n_times=n_times,
             )
+            report_dir = os.path.join(save_dir, f'{folder_name}', run_name)
+            util_path.create_dir(report_dir)
         else:
             # Ensembles
             run_name = make_run_name(
                 RUN_NAME_FORMAT,
                 data_name=dataset_name,
-                gan_models=util_general.parse_separated_list_comma(gan_models),
-                gan_steps=util_general.parse_separated_list_comma(gan_steps),
+                gan_models='ensemble',
+                gan_steps='ensemble',
                 metric_name=fitness_name,
                 cost_name=cost_name,
                 backbone=eval_backbone,
                 n_times=n_times,
             )
-
-    report_dir = os.path.join(save_dir, f'{folder_name}', run_name)
-    util_path.create_dir(report_dir)
+            report_dir = os.path.join(save_dir, f'{folder_name}', run_name)
+            util_path.create_dir(report_dir)
+            if len(gan_models_steps) != 0:
+                with open(os.path.join(save_dir, f'{folder_name}', run_name, 'gan_models_steps.txt'), 'w') as file:
+                    file.write(util_general.parse_separated_list_comma(gan_models_steps))
+            else:
+                util_general.parse_separated_list_comma(gan_steps)
+                with open(os.path.join(save_dir, f'{folder_name}', run_name, 'gan_models_steps.txt'), 'w') as file:
+                    file.write(util_general.parse_separated_list_comma(gan_models))
+                    file.write('\n')
+                    file.write(util_general.parse_separated_list_comma(gan_steps))
 
     # Preparing data.
     dataset_train =  Dataset_(
@@ -239,9 +253,9 @@ if __name__ == "__main__":
         # Model.
         print('==> Building and training model...')
         if model_name == 'resnet18':
-            model = ResNet18(in_channels=n_channels, num_classes=n_classes)
+            model = ResNet18(input_channels=n_channels, num_classes=n_classes)
         elif model_name == 'resnet50':
-            model = ResNet50(in_channels=n_channels, num_classes=n_classes)
+            model = ResNet50(input_channels=n_channels, num_classes=n_classes)
         else:
             raise NotImplementedError
         model = model.to(device)
@@ -278,7 +292,7 @@ if __name__ == "__main__":
         util_cnn.plot_training(history=history, plot_training_dir=report_dir, plot_name_loss=f'Loss_training_{i_train}', plot_name_acc=f'Acc_training_{i_train}')
 
         # Test model.
-        test_results = util_cnn.evaluate(dataset_name=dataset_name, model=model, data_loader=data_loaders['test'], device=device)
+        test_results = util_cnn.evaluate(dataset_name=dataset_name, model=model, data_loader=data_loaders['test'], device=device, n_classes=n_classes, metric_names=['recall', 'precision', 'f1_score', 'geometric_mean', 'auc'])
 
         # Update report.
         results["ACC"].append(test_results['all'])

@@ -99,7 +99,7 @@ def train_model(model, data_loaders, criterion, optimizer, scheduler, num_epochs
                         if current_samples > n_samples:
                             break
 
-                    if phase == 'val' and class_real is not None:
+                    if (phase == 'val' or phase == 'test') and class_real is not None:
                         labels = torch.full_like(labels.detach(), class_real)
 
                     inputs = inputs.to(device)
@@ -183,16 +183,17 @@ def train_model(model, data_loaders, criterion, optimizer, scheduler, num_epochs
 
     return model, history
 
-def evaluate(dataset_name, model, data_loader, device):
+def evaluate(dataset_name, model, data_loader, device, n_classes=2, metric_names=None, class_real=None):
 
     # Global and Class Accuracy
     if dataset_name == 'AIforCOVID':
         idx_to_class = data_loader.dataset.idx_to_class
-
     elif dataset_name == 'AERTS':
         raise NotImplementedError
     elif dataset_name == 'CLARO':
         raise NotImplementedError
+    elif class_real is not None:
+        idx_to_class = {class_real: 'real'}
     else:
         idx_to_class = data_loader.dataset.data.info['label']
         idx_to_class = {int(k): v for k, v in idx_to_class.items()}
@@ -206,6 +207,10 @@ def evaluate(dataset_name, model, data_loader, device):
     model.eval()
     with torch.no_grad():
         for inputs, labels in tqdm(data_loader):
+
+            if class_real is not None:
+                labels = torch.full_like(labels.detach(), class_real)
+
             inputs = inputs.to(device)
             labels = labels.to(device)
             labels_list.append(labels.cpu().numpy())
@@ -227,17 +232,52 @@ def evaluate(dataset_name, model, data_loader, device):
 
     # Accuracy
     test_results = {k: correct_pred[k]/total_pred[k] for k in correct_pred.keys() & total_pred}
-
-    test_results = compute_metrics(test_results, labels_list, preds_list, keys=['recall', 'precision', 'f1_score', 'specificity', 'geometric_mean', 'auc'])
+    if metric_names is not None:
+        if n_classes == 2:
+            test_results = compute_metrics(test_results, labels_list, preds_list, keys=metric_names)
+        else:
+            test_results = compute_multiclass_metrics(test_results, labels_list, preds_list, keys=metric_names)
 
     return test_results
 
-def compute_metrics(data, label, pred, keys=None):
+
+from sklearn.metrics import confusion_matrix, roc_auc_score, precision_recall_fscore_support
+import numpy as np
+
+
+def compute_multiclass_metrics(data, label, pred, keys, average='micro'):
+    from sklearn.metrics import roc_auc_score, precision_recall_fscore_support
+    """
+    Compute metrics for multi-class tasks.
+
+    Parameters:
+    - data (dict): Dictionary to store results.
+    - label (array-like): True labels.
+    - pred (array-like): Predicted labels.
+    - keys (list, optional): Metrics to compute. Default includes most metrics.
+    - average (str, optional): Averaging method for multi-class metrics ('macro', 'micro'). Default is 'macro'.
+
+    Returns:
+    - data (dict): Dictionary with computed metrics.
+    """
+
+    # Accuracy remains unchanged
+    if 'acc' in keys:
+        data['acc'] = np.mean(label == pred)
+    precision, recall, f1, _ = precision_recall_fscore_support(label, pred, average=average) # check https://scikit-learn.org/stable/modules/generated/sklearn.metrics.precision_recall_fscore_support.html
+    if 'recall' in keys:
+        data['recall'] = recall
+    if 'precision' in keys:
+        data['precision'] = precision
+    if 'f1_score' in keys:
+        data['f1_score'] = f1
+
+    return data
+
+def compute_metrics(data, label, pred, keys):
     from sklearn.metrics import confusion_matrix
     from sklearn.metrics import roc_auc_score
     import math
-    if keys is None:
-        keys = ['acc', 'recall', 'precision', 'f1_score', 'specificity', 'geometric_mean', 'auc']
 
     # Conf matrix
     #    predicted

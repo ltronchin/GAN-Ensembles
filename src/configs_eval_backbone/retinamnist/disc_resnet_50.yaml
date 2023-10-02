@@ -1,10 +1,10 @@
 SEED: 42
 DATA:
-  data_dir: ./data/raw/pneumoniamnist
-  name: "pneumoniamnist"
+  data_dir: ./data/raw/retinamnist
+  name: "retinamnist"
   img_size: 32
-  num_classes: 2
-  img_channels: 1
+  num_classes: 5
+  img_channels: 3
 
 PRE:
   crop_long_edge: True
@@ -14,7 +14,7 @@ PRE:
   apply_rflip: False
 
 MODEL:
-  name: resnet50 #resnet18
+  name: disc_resnet_50
 
 TRAINER:
   batch_size: 64
@@ -24,6 +24,6 @@ TRAINER:
   scheduler: # allow to change learning rate during training
     mode: min
     patience: 5 # if the validation loss do not improve for x epochs, the scheduler reduces the learning rate (lr*10^-1)
-  early_stopping: 25 # if the validation loss do not improve for x epochs stop training
+  early_stopping: 5 # if the validation loss do not improve for x epochs stop training
   warmup_epoch: 25 # number of epochs to warmup
   max_epochs: 100

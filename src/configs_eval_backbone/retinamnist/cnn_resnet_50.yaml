@@ -1,10 +1,10 @@
 SEED: 42
 DATA:
-  data_dir: ./data/raw/pneumoniamnist
-  name: "pneumoniamnist"
+  data_dir: ./data/raw/retinamnist
+  name: "retinamnist"
   img_size: 32
-  num_classes: 2
-  img_channels: 1
+  num_classes: 5
+  img_channels: 3
 
 PRE:
   crop_long_edge: True
@@ -14,7 +14,7 @@ PRE:
   apply_rflip: False
 
 MODEL:
-  name: resnet50 #resnet18
+  name: cnn_resnet_50
 
 TRAINER:
   batch_size: 64

@@ -483,7 +483,7 @@ def plot_tsne_scatter_plot(df, tsne_results, flag, directory, logger, logging=Tr
 
 def save_images(data_loader, generator, discriminator, is_generate, num_images, y_sampler, batch_size, z_prior,
                     truncation_factor, z_dim, num_classes, LOSS, OPTIMIZATION, RUN, MODEL, is_stylegan, generator_mapping,
-                    generator_synthesis, directory, device, save_fake_as_tiff):
+                    generator_synthesis, directory, device, save_fake_as_tiff, save_fake_as_npy):
     num_batches = math.ceil(float(num_images) / float(batch_size))
     if RUN.distributed_data_parallel: num_batches = num_batches//OPTIMIZATION.world_size + 1
     if is_generate:
@@ -501,6 +501,8 @@ def save_images(data_loader, generator, discriminator, is_generate, num_images, 
 
     if save_fake_as_tiff:
         print("Save {num_images} {image_type} images in tiff format.".format(num_images=num_images, image_type=image_type))
+    elif save_fake_as_npy:
+        print("Save {num_images} {image_type} images in npy format.".format(num_images=num_images, image_type=image_type))
     else:
         print("Save {num_images} {image_type} images in png format.".format(num_images=num_images, image_type=image_type))
 
@@ -554,6 +556,11 @@ def save_images(data_loader, generator, discriminator, is_generate, num_images, 
                         # Reload
                         # img_disk = Image.open(join(directory, str(labels[idx].item()), "{idx}.tiff".format(idx=batch_size * i + idx)))
                         # img_disk = np.array(img_disk)
+                    elif save_fake_as_npy:
+                        im = img.detach().cpu().numpy()
+                        np.save(join(directory, str(labels[idx].item()), "{idx}.npy".format(idx=batch_size * i + idx)), im)
+                        # Reload
+                        #img_disk = np.load(join(directory, str(labels[idx].item()), "{idx}.npy".format(idx=batch_size * i + idx)))
                     else:
                         save_image(((img + 1) / 2).clamp(0.0, 1.0), join(directory, str(labels[idx].item()), "{idx}.png".format(idx=batch_size * i + idx)))
 
@@ -561,6 +568,8 @@ def save_images(data_loader, generator, discriminator, is_generate, num_images, 
                     pass
     if save_fake_as_tiff:
         print("Finish saving tiff images to {directory}/*/*.tiff".format(directory=directory))
+    elif save_fake_as_npy:
+        print("Finish saving npy images to {directory}/*/*.npy".format(directory=directory))
     else:
         print("Finish saving png images to {directory}/*/*.png".format(directory=directory))
 

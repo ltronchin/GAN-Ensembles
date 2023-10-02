@@ -10,7 +10,7 @@ import pandas as pd
 from random import choices, randint
 from torch.utils.data import Dataset
 from torchvision import transforms
-from torchvision.datasets import ImageFolder
+from torchvision.datasets import ImageFolder, DatasetFolder
 
 
 def get_dataset(data_name, data_dir, cfgs=None, train=True):
@@ -280,17 +280,27 @@ def custom_pil_loader(path):
         img.load()
         return img
 
+def custom_npy_loader(path):
+    img = np.load(path)
+    return img
+
 class DiscDataset(Dataset):
-    def __init__(self, root_dir, classes, max_samples_per_gan=None):
+    def __init__(self, root_dir, classes, max_samples_per_gan=None, pil_loader=False):
+
+        # Define the loader.
+        if pil_loader:
+            self.loader = custom_pil_loader
+            self.trsf_list = [transforms.PILToTensor()]
+        else:
+            self.loader = custom_npy_loader
+            self.trsf_list = [torch.from_numpy]
 
         self.root_dir = root_dir
         self.classes = classes
         self.max_samples_per_gan = max_samples_per_gan
-
-        self.trsf_list = [transforms.PILToTensor()]
-        self.trsf = transforms.Compose(self.trsf_list)
         self.samples = []
 
+        self.trsf = transforms.Compose(self.trsf_list)
         self._prepare_dataset_gan()
 
     def _prepare_dataset_gan(self):
@@ -301,7 +311,7 @@ class DiscDataset(Dataset):
                 for file in files:
                     if self.max_samples_per_gan and sample_count >= self.max_samples_per_gan:
                         break
-                    if file.endswith(".tiff"):
+                    if file.endswith(".tiff") or file.endswith(".npy"):
                         image_path = os.path.join(root, file)
                         self.samples.append((image_path, class_id))
                         sample_count += 1
@@ -311,28 +321,33 @@ class DiscDataset(Dataset):
 
     def __getitem__(self, idx):
         image_path, label = self.samples[idx]
-        image = custom_pil_loader(image_path)
+        image = self.loader(image_path)
 
         # return self.trsf(image), label, image_path
         return self.trsf(image), label
+
 class EnsembleDataset(Dataset):
-    def __init__(self, folders, weights):
+    def __init__(self, folders, weights, pil_loader=False):
 
         assert len(folders) == len(weights)
         # assert sum(weights) == 1
 
+        if pil_loader:
+            self.loader = custom_pil_loader
+            self.trsf_list = [transforms.PILToTensor()]
+        else:
+            self.loader = custom_npy_loader
+            self.trsf_list = [torch.from_numpy]
+
         self.folders = folders
         self.weights = weights
 
-        self.trsf_list = [transforms.PILToTensor()]
         self.trsf = transforms.Compose(self.trsf_list)
-
         self.image_folders = []
         print('Create the ensemble dataset.')
         for folder in folders:
             print('Folder: ', folder)
-            self.image_folders.append(ImageFolder(root=folder, loader=custom_pil_loader))
-
+            self.image_folders.append(DatasetFolder(root=folder, loader=self.loader, extensions=('.npy', '.tiff'))) #  self.image_folders.append(ImageFolder(root=folder, loader=self.loader))
         # self.image_folders = [ImageFolder(root=folder, loader=custom_pil_loader) for folder in folders]
 
     def __len__(self):
@@ -349,13 +364,38 @@ class EnsembleDataset(Dataset):
         # return self.trsf(image), label, img_path.split('fake')[0], img_path
         return self.trsf(image), label
 
-class GANDataset(Dataset):
-    def __init__(self, folder):
+class DummyDataset(Dataset):
+    def __init__(self, folder, pil_loader=False):
 
-        self.trsf_list = [transforms.PILToTensor()]
+        if pil_loader:
+            self.loader = custom_pil_loader
+            self.trsf_list = [transforms.PILToTensor()]
+        else:
+            self.loader = custom_npy_loader
+            self.trsf_list = [torch.from_numpy]
+
         self.trsf = transforms.Compose(self.trsf_list)
+        self.dataset = DatasetFolder(root=folder, loader=self.loader, extensions=('.npy', '.tiff')) # self.dataset = ImageFolder(root=folder, loader=self.loader)
 
-        self.dataset = ImageFolder(root=folder, loader=custom_pil_loader)
+    def __len__(self):
+        return len(self.dataset)
+    def __getitem__(self, idx):
+
+        image, label = self.dataset[idx]
+        return self.trsf(image), label
+
+class GANDataset(Dataset):
+    def __init__(self, folder, pil_loader=False):
+
+        if pil_loader:
+            self.loader = custom_pil_loader
+            self.trsf_list = [transforms.PILToTensor()]
+        else:
+            self.loader = custom_npy_loader
+            self.trsf_list = [torch.from_numpy]
+
+        self.trsf = transforms.Compose(self.trsf_list)
+        self.dataset = DatasetFolder(root=folder, loader=self.loader, extensions=('.npy', '.tiff')) # self.dataset = ImageFolder(root=folder, loader=self.loader)
 
     def __len__(self):
         return len(self.dataset) # sum([len(folder) for folder in self.image_folders])
@@ -376,7 +416,6 @@ class MergedDataset(Dataset):
         self.class_real = self.classes_synth
 
         self.total_classes = self.classes_synth + 1
-
         self.total_len = len(self.dataset_synth) + len(self.dataset_real)
 
     def __len__(self):

@@ -53,7 +53,6 @@ if __name__ == "__main__":
 
     # Parameters.
     save_dir = args.save_dir
-    data_dir = cfg['DATA']['data_dir']
 
     gpu_ids = int(args.gpu_ids)
     num_workers = args.num_workers
@@ -63,13 +62,15 @@ if __name__ == "__main__":
     n_classes = cfg['DATA']['num_classes']
     model_name = cfg['MODEL']['name']
     batch_size = cfg['TRAINER']['batch_size']
+    weighted_loss = True
 
     # Device.
     if gpu_ids >= 0:
         # Check if available.
         if not torch.cuda.is_available():
-            raise ValueError('GPU specified but not available.')
-        device = torch.device('cuda:{}'.format(gpu_ids))
+            device = torch.device('cpu')
+        else:
+            device = torch.device('cuda:{}'.format(gpu_ids))
     else:
         device = torch.device('cpu')
 
@@ -84,52 +85,30 @@ if __name__ == "__main__":
     util_path.create_dir(report_dir)
 
     # Preparing data.
-    dataset_train =  Dataset_(
-        data_name=cfg['DATA']['name'],
-        data_dir=data_dir,
-        train=True,
-        split='train',
-        crop_long_edge=cfg['PRE']['crop_long_edge'],
-        resize_size=cfg['PRE']['resize_size'],
-        resizer=cfg['PRE']['pre_resizer'],
-        random_flip=cfg['PRE']['apply_rflip'],
-        normalize=cfg['PRE']['normalize'],
-        cfgs=cfg
-    )
-    n_samples = len(dataset_train)
-
-
     datasets = {
-        'train': dataset_train,
-        'val': Dataset_(
-            data_name=cfg['DATA']['name'],
-            data_dir=data_dir,
-            train=False,
-            split='val',
-            crop_long_edge=cfg['PRE']['crop_long_edge'],
-            resize_size=cfg['PRE']['resize_size'],
-            resizer=cfg['PRE']['pre_resizer'],
-            random_flip=cfg['PRE']['apply_rflip'],
-            normalize=cfg['PRE']['normalize'],
-            cfgs=cfg
-        ),
-        'test': Dataset_(
-            data_name=cfg['DATA']['name'],
-            data_dir=data_dir,
-            train=False,
-            split='test',
-            crop_long_edge=cfg['PRE']['crop_long_edge'],
-            resize_size=cfg['PRE']['resize_size'],
-            resizer=cfg['PRE']['pre_resizer'],
-            random_flip=cfg['PRE']['apply_rflip'],
-            normalize=cfg['PRE']['normalize'],
-            cfgs=cfg
-        )
+        step: Dataset_(data_name=cfg['DATA']['name'],
+                            data_dir=cfg['DATA']['data_dir'],
+                            train=True if step == 'train' else False,
+                            split=step,
+                            crop_long_edge=cfg['PRE']['crop_long_edge'],
+                            resize_size=cfg['PRE']['resize_size'],
+                            resizer=cfg['PRE']['pre_resizer'],
+                            random_flip=cfg['PRE']['apply_rflip'],
+                            normalize=cfg['PRE']['normalize'],
+                            cfgs=cfg)  for step in ["train", "val", "test"]
     }
+
+    n_samples = len(datasets['train'])
+
     idx_to_class = datasets['test'].data.info['label']
     idx_to_class = {int(k): v for k, v in idx_to_class.items()}
     class_to_idx = {v: k for k, v in idx_to_class.items()}
     classes = [idx_to_class[i] for i in range(len(idx_to_class))]
+    weight = [
+        len(datasets['train'].data) / (
+                    len(classes) * len(datasets['train'].data.labels[datasets['train'].data.labels == class_to_idx[c]]))
+        for c in classes
+    ]
 
     data_loaders = {
         'train': torch.utils.data.DataLoader(datasets['train'], batch_size=cfg['TRAINER']['batch_size'], shuffle=True, num_workers=num_workers),
@@ -139,12 +118,16 @@ if __name__ == "__main__":
 
     # Model.
     print('==> Building and training model...')
-    model = ResNet50(in_channels=n_channels, num_classes=n_classes)
+    model = ResNet50(input_channels=n_channels, num_classes=n_classes)
 
     model = model.to(device)
 
     # Loss function.
-    criterion = nn.CrossEntropyLoss().to(device)
+    if weighted_loss:
+        criterion = nn.CrossEntropyLoss(weight=torch.Tensor(weight)).to(device)
+    else:
+        criterion = nn.CrossEntropyLoss().to(device)
+
     # Optimizer.
     optimizer = optim.Adam(model.parameters(), lr=cfg['TRAINER']['optimizer']['lr'])
     # LR Scheduler.
@@ -170,12 +153,15 @@ if __name__ == "__main__":
     util_cnn.plot_training(history=history, plot_training_dir=report_dir)
 
     # Test model.
-    test_results = util_cnn.evaluate(dataset_name=dataset_name, model=model, data_loader=data_loaders['test'], device=device)
+    test_results = util_cnn.evaluate(dataset_name=dataset_name, model=model, data_loader=data_loaders['test'], device=device, n_classes=n_classes, metric_names=['recall', 'precision', 'f1_score'])
 
     # Update report.
     results["ACC"].append(test_results['all'])
     for c in classes:
         results["ACC %s" % str(c)].append(test_results[c])
+    results['recall'].append(test_results['recall'])
+    results['precision'].append(test_results['precision'])
+    results['f1_score'].append(test_results['f1_score'])
 
     # Save Results
     report_file = os.path.join(report_dir, 'results.xlsx')

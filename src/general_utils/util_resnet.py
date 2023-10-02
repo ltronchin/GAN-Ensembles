@@ -41,7 +41,7 @@ class Bottleneck(nn.Module):
         if self.downsample is not None:
             shortcut = self.downsample(x)
 
-        out += shortcut
+        out = out + shortcut #out += shortcut
         out = self.relu(out)
 
         return out
@@ -83,7 +83,7 @@ class DeconvBottleneck(nn.Module):
         if self.upsample is not None:
             shortcut = self.upsample(x)
 
-        out += shortcut
+        out = out + shortcut #out += shortcut
         out = self.relu(out)
 
         return out

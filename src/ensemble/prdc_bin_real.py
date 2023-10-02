@@ -71,8 +71,9 @@ if __name__ == '__main__':
     if gpu_ids >= 0:
         # Check if available.
         if not torch.cuda.is_available():
-            raise ValueError('GPU specified but not available.')
-        device = torch.device('cuda:{}'.format(gpu_ids))
+            device = torch.device('cpu')
+        else:
+            device = torch.device('cuda:{}'.format(gpu_ids))
     else:
         device = torch.device('cpu')
 

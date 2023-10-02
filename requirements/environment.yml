@@ -38,3 +38,4 @@ dependencies:
     - pydicom
     - bokeh
     - umap-learn
+    - torchmetrics

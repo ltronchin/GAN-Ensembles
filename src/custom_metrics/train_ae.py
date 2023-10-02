@@ -59,8 +59,9 @@ if __name__ == "__main__":
     if gpu_ids >= 0:
         # Check if available.
         if not torch.cuda.is_available():
-            raise ValueError('GPU specified but not available.')
-        device = torch.device('cuda:{}'.format(gpu_ids))
+            device = torch.device('cpu')
+        else:
+            device = torch.device('cuda:{}'.format(gpu_ids))
     else:
         device = torch.device('cpu')
 
@@ -79,16 +80,18 @@ if __name__ == "__main__":
         step: Dataset_(data_name=cfg['DATA']['name'],
                             data_dir=data_dir,
                             train=True if step == 'train' else False,
+                            split=step,
                             crop_long_edge=cfg['PRE']['crop_long_edge'],
                             resize_size=cfg['PRE']['resize_size'],
                             resizer=cfg['PRE']['pre_resizer'],
                             random_flip=cfg['PRE']['apply_rflip'],
                             normalize=cfg['PRE']['normalize'],
-                            cfgs=cfg)  for step in ["train", "val"]
+                            cfgs=cfg) for step in ["train", "val", "test"]
     }
     data_loaders = {
         'train': torch.utils.data.DataLoader(datasets['train'], batch_size=cfg['TRAINER']['batch_size'], shuffle=True, num_workers=num_workers),
         'val': torch.utils.data.DataLoader(datasets['val'], batch_size=cfg['TRAINER']['batch_size'], shuffle=False, num_workers=num_workers),
+        'test': torch.utils.data.DataLoader(datasets['test'], batch_size=cfg['TRAINER']['batch_size'], shuffle=False, num_workers=num_workers)
     }
 
     # Model
@@ -96,7 +99,7 @@ if __name__ == "__main__":
     input, _ = next(dataiter)
 
     input_dim = input[0].shape[1]
-    model = util_model.get_img_autoencoder(model_name=model_name, input_dim=input_dim, h_dim=cfg['MODEL']['h_dim'], n_classes=cfg['DATA']['img_channels'])
+    model = util_model.get_img_autoencoder(model_name=model_name, input_dim=input_dim, h_dim=cfg['MODEL']['h_dim'], input_channels=cfg['DATA']['img_channels'])
     model = model.to(device)
 
     # Loss function
@@ -117,17 +120,20 @@ if __name__ == "__main__":
         scheduler=scheduler,
         num_epochs=cfg['TRAINER']['max_epochs'],
         early_stopping=cfg['TRAINER']['early_stopping'],
+        warmup_epoch=cfg['TRAINER']['warmup_epoch'],
         model_dir=report_dir,
         device=device
     )
 
     # Plot Training.
     util_model.plot_training(history=history, plot_training_dir=report_dir)
+    util_model.evaluate(model=model, data_loader=data_loaders['val'], report_dir=report_dir, device=device, split='val')
+    util_model.evaluate(model=model, data_loader=data_loaders['test'], report_dir=report_dir, device=device, split='test')
 
     # Plot.
     rec_dir = os.path.join(report_dir, 'rec')
     util_path.create_dir(rec_dir)
-    util_model.plot_evaluate_img_autoencoder(model=model, data_loader=data_loaders['val'], plot_dir=rec_dir, device=device)
+    util_model.plot_evaluate_img_autoencoder(model=model, data_loader=data_loaders['test'], plot_dir=rec_dir, device=device)
 
     # Save dataframe history as excel.
     df = pd.DataFrame.from_dict(history)

@@ -1,7 +1,7 @@
 SEED: 42
 DATA:
-  data_dir: ./data/raw/pneumoniamnist
-  name: "pneumoniamnist"
+  data_dir: ./data/raw/breastmnist
+  name: "breastmnist"
   img_size: 32
   num_classes: 2
   img_channels: 1

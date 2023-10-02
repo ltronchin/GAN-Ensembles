@@ -5,9 +5,12 @@ try:
 except ImportError:
     from torch.utils.model_zoo import load_url as load_state_dict_from_url
 import numpy as np
+import os
 import torch
 import torchvision.transforms as transforms
 
+from src.general_utils import util_autoencoder
+from src.cnn_models.models import ResNet50
 import src.custom_metrics.resize as resize
 
 model_versions = {"InceptionV3_torch": "pytorch/vision:v0.10.0",
@@ -17,6 +20,93 @@ model_versions = {"InceptionV3_torch": "pytorch/vision:v0.10.0",
 model_names = {"InceptionV3_torch": "inception_v3",
                "ResNet50_torch": "resnet50",
                "SwAV_torch": "resnet50"}
+
+CUSTOM_BACKBONE_CONFIG = {
+    # pneumoniamnist
+    'resnet_ae_50_pneumoniamnist': {
+        'source_dir': "./reports/pneumoniamnist/backbone",
+        'model_name': 'resnet_ae_50',
+        'res': 32,
+        'input_dim': (1, 32, 32),
+        'n_classes': None,
+        'channels': 1,
+        'model_path': "pneumoniamnist-resnet_ae_50-train-2023_08_06_07_26_06/model_best_epoch_17.pt"
+    },
+    'disc_resnet_50_pneumoniamnist': {
+        'source_dir': "./reports/pneumoniamnist/backbone",
+        'model_name': 'disc_resnet_50',
+        'res': 32,
+        'input_dim': (1, 32, 32),
+        'channels': 1,
+        'n_classes': 111,
+        'model_path': "pneumoniamnist-disc_resnet_50-train-2023_08_08_11_32_43/model_best_epoch_2.pt"
+    },
+    'cnn_resnet_50_pneumoniamnist': {
+        'source_dir': "./reports/pneumoniamnist/backbone",
+        'model_name': 'cnn_resnet_50',
+        'res': 32,
+        'input_dim': (1, 32, 32),
+        'channels': 1,
+        'n_classes': 2,
+        'model_path': "pneumoniamnist-cnn_resnet_50-train-2023_08_16_15_35_41/model_best_epoch_5.pt"
+    },
+    # retinamnist
+    'resnet_ae_50_retinamnist': {
+        'source_dir': "./reports/retinamnist/backbone",
+        'model_name': 'resnet_ae_50',
+        'res': 32,
+        'input_dim': (3, 32, 32),
+        'n_classes': None,
+        'channels': 3,
+        'model_path': "retinamnist-resnet_ae_50-train-2023_09_29_09_00_44/model_best_epoch_99.pt"
+    },
+    'disc_resnet_50_retinamnist': {
+        'source_dir': "./reports/retinamnist/backbone",
+        'model_name': 'disc_resnet_50',
+        'res': 32,
+        'input_dim': (3, 32, 32),
+        'channels': 3,
+        'n_classes': 111,
+        'model_path': "retinamnist-disc_resnet_50-train-2023_09_29_08_45_23/model_best_epoch_29.pt"
+    },
+    'cnn_resnet_50_retinamnist': {
+        'source_dir': "./reports/retinamnist/backbone",
+        'model_name': 'cnn_resnet_50',
+        'res': 32,
+        'input_dim': (3, 32, 32),
+        'channels': 3,
+        'n_classes': 5,
+        'model_path': "retinamnist-cnn_resnet_50-train-2023_09_29_08_54_25/model_best_epoch_27.pt"
+    },
+    # breastmnist
+    'resnet_ae_50_breastmnist': {
+        'source_dir': "./reports/breastmnist/backbone",
+        'model_name': 'resnet_ae_50',
+        'res': 32,
+        'input_dim': (1, 32, 32),
+        'n_classes': None,
+        'channels': 1,
+        'model_path': "breastmnist-resnet_ae_50-train-2023_09_29_09_00_46/model_best_epoch_97.pt"
+    },
+    'disc_resnet_50_breastmnist': {
+        'source_dir': "./reports/breastmnist/backbone",
+        'model_name': 'disc_resnet_50',
+        'res': 32,
+        'input_dim': (1, 32, 32),
+        'channels': 1,
+        'n_classes': 111,
+        'model_path': "breastmnist-disc_resnet_50-train-2023_09_29_09_00_48/model_best_epoch_41.pt"
+    },
+    'cnn_resnet_50_breastmnist': {
+        'source_dir': "./reports/breastmnist/backbone",
+        'model_name': 'cnn_resnet_50',
+        'res': 32,
+        'input_dim': (1, 32, 32),
+        'channels': 1,
+        'n_classes': 2,
+        'model_path': "breastmnist-cnn_resnet_50-train-2023_09_29_08_45_34/model_best_epoch_49.pt"
+    }
+}
 
 SWAV_CLASSIFIER_URL = "https://dl.fbaipublicfiles.com/deepcluster/swav_800ep_eval_linear.pth.tar"
 
@@ -79,53 +169,40 @@ class LoadEvalModel(object):
             self.totensor = transforms.ToTensor()
             self.mean = torch.Tensor(mean).view(1, 3, 1, 1).to(self.device)
             self.std = torch.Tensor(std).view(1, 3, 1, 1).to(self.device)
-        elif self.eval_backbone == 'resnet_ae_50_pneumoniamnist':
-            from src.general_utils import util_autoencoder
-            import os
-            source_dir = "./reports/pneumoniamnist/backbone"
-            self.res = 32
-            input_dim = (1, 32, 32)
-            self.model = util_autoencoder.get_img_autoencoder(model_name='resnet_ae_50', input_dim=input_dim, h_dim=None, n_classes=1)
-            self.model.load_state_dict(torch.load(os.path.join(source_dir, "pneumoniamnist-resnet_ae_50-train-2023_08_06_07_26_06", "model_best_epoch_17.pt"),map_location=self.device ))
-            self.model = self.model.to(self.device)
-        elif self.eval_backbone == 'disc_resnet_50_pneumoniamnist':
-            from src.cnn_models.models import ResNet50
-            import os
-            source_dir = "./reports/pneumoniamnist/backbone"
-            self.res = 32
-            input_dim = (1, 32, 32)
-            n_classes = 111
-            self.model = ResNet50(in_channels=input_dim[0], num_classes=n_classes)
-            self.model.load_state_dict(torch.load(os.path.join(source_dir, "pneumoniamnist-disc_resnet_50-train-2023_08_08_11_32_43", "model_best_epoch_2.pt"),map_location=self.device))
-            self.model = self.model.to(self.device)
-        elif self.eval_backbone == 'cnn_resnet_50_pneumoniamnist':
-            from src.cnn_models.models import ResNet50
-            import os
-            source_dir = "./reports/pneumoniamnist/backbone"
-            self.res = 32
-            input_dim = (1, 32, 32)
-            n_classes = 2
-            self.model = ResNet50(in_channels=input_dim[0], num_classes=n_classes)
-            self.model.load_state_dict(torch.load(os.path.join(source_dir, "pneumoniamnist-cnn_resnet_50-train-2023_08_16_15_35_41",  "model_best_epoch_5.pt"),map_location=self.device ))
-            self.model = self.model.to(self.device)
+
         else:
-            raise NotImplementedError
+            config = CUSTOM_BACKBONE_CONFIG.get(self.eval_backbone)
+            if config is None:
+                raise NotImplementedError
+            self.res = config['res']
+            model_name = config['model_name']
+            if model_name in ['disc_resnet_50', 'cnn_resnet_50']:
+                self.model = ResNet50(input_channels=config['channels'], num_classes=config['n_classes'])
+                self.model.load_state_dict(torch.load(os.path.join(config['source_dir'], config['model_path']), map_location=self.device))
+            elif model_name in ['resnet_ae_50']:
+                self.model = util_autoencoder.get_img_autoencoder(model_name=model_name, input_dim=config['input_dim'], h_dim=None, input_channels=config['channels'])
+                self.model.load_state_dict(torch.load(os.path.join(config['source_dir'], config['model_path']), map_location=self.device))
+            else:
+                raise NotImplementedError
+            self.model = self.model.to(self.device)
 
     def eval(self):
         self.model.eval()
 
     def get_outputs(self, x, quantize=False):
 
-        if self.eval_backbone in "resnet_ae_50_pneumoniamnist":
-            repres = self.model.encode(x)  # BATCH_SIZE x n_feat x 1 x 1
-            repres = repres.view(repres.size(0), -1) # BATCH_SIZE x n_feat
-            return repres, None
-        elif self.eval_backbone == 'disc_resnet_50_pneumoniamnist':
-            repres = self.model.extract_features(x)
-            return repres, None
-        elif self.eval_backbone == 'cnn_resnet_50_pneumoniamnist':
-            repres = self.model.extract_features(x)
-            return repres, None
+        # Get keys from dict.
+        custom_backbones_keys = list(CUSTOM_BACKBONE_CONFIG.keys())
+
+        if self.eval_backbone in custom_backbones_keys:
+            config = CUSTOM_BACKBONE_CONFIG.get(self.eval_backbone)
+            if config['model_name'] in ['resnet_ae_50']:
+                repres = self.model.encode(x)  # BATCH_SIZE x n_feat x 1 x 1
+                repres = repres.view(repres.size(0), -1) # BATCH_SIZE x n_feat
+                return repres, None
+            else:
+                repres = self.model.extract_features(x)
+                return repres, None
 
         if x.shape[1] != 3:
             x = x.repeat(1, 3, 1, 1)  # grayscale to RGB

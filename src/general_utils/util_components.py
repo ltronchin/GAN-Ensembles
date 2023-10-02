@@ -11,11 +11,11 @@ class DoubleConv(nn.Module):
         self.double_conv = nn.Sequential(
             nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(mid_channels),
-            nn.ReLU(inplace=False),
+            nn.ReLU(),
             # without allocating any additional output
             nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=False)
+            nn.ReLU()
         )
 
     def forward(self, x):
@@ -71,10 +71,10 @@ class DoubleLinear(nn.Module):
             mid_channels = out_channels
         self.double_linear = nn.Sequential(
             nn.Linear(in_channels, mid_channels),
-            nn.ReLU(inplace=False),
+            nn.ReLU(),
             # without allocating any additional output
             nn.Linear(mid_channels, out_channels),
-            nn.ReLU(inplace=False)
+            nn.ReLU()
         )
 
     def forward(self, x):

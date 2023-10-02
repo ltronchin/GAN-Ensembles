@@ -30,3 +30,4 @@ natsort
 pydicom
 bokeh
 umap-learn
+torchmetrics

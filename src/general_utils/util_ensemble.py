@@ -1,6 +1,8 @@
 import numpy as np
 from itertools import combinations
 from tqdm import tqdm
+import copy
+import optuna
 
 from src.general_utils import util_general
 
@@ -37,120 +39,75 @@ def softmax(arr):
     """
     exp_arr = np.exp(arr - np.max(arr))
     return exp_arr / np.sum(exp_arr, axis=0)
+def get_inter_metric(sel_gans, fitness_name, summary_flag, **kwargs):
 
+    df_real = kwargs['data_real']
+    df_real = df_real[
+        (df_real['gan0'] + "_" + df_real['step0'].astype(str)).isin(sel_gans)
+    ]
+    df_real.reset_index(drop=True, inplace=True)
+    n_inter = len(sel_gans)
+    assert n_inter == len(df_real)
 
-def pho_div(models, k):
-
-    # gan_div list of all couples.
-    # k number of gans.
-
-    div = 2 / (k * (k - 1))
-    return div * sum(models)
-def get_inter_metric(search_space, fitness_name, summary_flag, **kwargs):
-
-    #print(f"Compute Inter {fitness_name}")
-    data = kwargs['data_real']
-    k = len(search_space)
-
-    history = {
-        fitness_name: [],
-    }
-
-    #with tqdm(total=k) as pbar:
-    for gan in search_space:
-        gan_name, step = gan.split('_')
-        step = int(step)
-
-        df = data[(data['gan0'] == gan_name) & (data['step0'] == step)]
-        assert len(df) != 0
-
-        history[fitness_name].append(df[fitness_name].values[0])
-        #pbar.update(1)
+    values = list(df_real[fitness_name])
 
     if summary_flag == 'mean':
-        fitness_value = np.mean(history[fitness_name])
-    elif summary_flag == 'div':
-        fitness_value = pho_div(history[fitness_name], k)
+        fitness_value = np.mean(values)
     elif summary_flag == 'std':
-        fitness_value = np.std(history[fitness_name])
+        fitness_value = np.std(values)
     elif summary_flag == 'sem':
-        fitness_value = np.std(history[fitness_name]) / np.sqrt(k)
+        fitness_value = np.std(values) / np.sqrt(n_inter)
     else:
         raise ValueError(f'Unknown summary flag: {summary_flag}')
 
     return fitness_value
 
-def get_intra_metric(search_space, fitness_name, summary_flag, **kwargs):
+def get_intra_metric(sel_gans, fitness_name, summary_flag, **kwargs):
 
-    #print(f"Compute Intra {fitness_name}")
-    data = kwargs['data_synth']
+    df_synth = kwargs['data_synth']
+    df_synth = df_synth[
+        (df_synth['gan0'] + "_" + df_synth['step0'].astype(str)).isin(sel_gans) &
+        (df_synth['gan1'] + "_" + df_synth['step1'].astype(str)).isin(sel_gans)
+        ]
+    df_synth.reset_index(drop=True, inplace=True)
+    n_intra =  len([x for x in combinations(sel_gans, 2)])
+    assert n_intra == len(df_synth)
 
-    k = len(search_space)
+    values = list(df_synth[fitness_name])
 
-    history = {
-        fitness_name: [],
-    }
-    tot_comb =len(list(combinations(search_space, 2)))
-    #with tqdm(total=tot_comb) as pbar:
-    for gan_comb in combinations(search_space, 2):
-        gan_comb = util_general.parse_separated_list_comma(list(gan_comb))
-        parts = gan_comb.split(',')
-        gan0, step0 = parts[0].split('_')
-        gan1, step1 = parts[1].split('_')
-        step0 = int(step0)
-        step1 = int(step1)
-
-        # Filter data for current gan couple.
-
-        df_couple = data[(data['gan0'] == gan0) & (data['step0'] == step0) &  (data['gan1'] == gan1) & (data['step1'] == step1)]
-        if len(df_couple) == 0:
-            df_couple = data[(data['gan0'] == gan1) & (data['step0'] == step1) &  (data['gan1'] == gan0) & (data['step1'] == step0)]
-        assert len(df_couple) != 0, f'No data for {gan_comb}'
-
-        history[fitness_name].append(df_couple[fitness_name].values[0])
-        #pbar.update(1)
-
-    # The fitness is the mean fid.
     if summary_flag == 'mean':
-        fitness_value = np.mean(history[fitness_name])
-    elif summary_flag == 'div':
-        fitness_value = pho_div(history[fitness_name], k)
+        fitness_value = np.mean(values)
     elif summary_flag == 'std':
-        fitness_value = np.std(history[fitness_name])
+        fitness_value = np.std(values)
     elif summary_flag == 'sem':
-        fitness_value = np.std(history[fitness_name]) / np.sqrt(k)
+        fitness_value = np.std(values) / np.sqrt(n_intra)
     else:
         raise ValueError(f'Unknown summary flag: {summary_flag}')
 
     return fitness_value
 
-def objective(trial, search_space, fitness_name, summary_flag, cost_name, **kwargs):
+def objective(trial, gan_models, gan_steps, obj_name, fitness_name, summary_flag, **kwargs):
 
-    ensemble = trial.suggest_categorical('ensemble', search_space)
-    ensemble = util_general.parse_comma_separated_list(ensemble)
+    search_space = [f"{x}_{y}" for x in gan_models for y in gan_steps]
+    sel_idx = [trial.suggest_int(x, 0, 1) for x in search_space]
+    sel_gans = [x for i, x in enumerate(search_space) if sel_idx[i] == 1]
+    n_search_space = len(sel_gans)
 
-    print('\n')
-    print('Ensemble')
-    print(ensemble)
+    if len(sel_gans) < 2:
+        raise optuna.TrialPruned("Number of selected GANs is less than 2.")
 
-    intra_metric = get_intra_metric(search_space=ensemble, fitness_name=fitness_name, summary_flag=summary_flag, **kwargs) # to maximize
-    inter_metric = get_inter_metric(search_space=ensemble, fitness_name=fitness_name, summary_flag=summary_flag, **kwargs) # to minimize
-
-    print(f'Intra metric: {intra_metric}')
-    print(f'Inter metric: {inter_metric}')
-
-    if cost_name == 'diff':
-        obj = inter_metric - intra_metric
-    elif cost_name == 'ratio':
-        obj = inter_metric / intra_metric
-    elif cost_name == 'intra':
-        obj = -intra_metric
-    elif cost_name == 'inter':
-        obj = inter_metric
+    if obj_name == 'intra_inter':
+        intra_metric = get_intra_metric(sel_gans, fitness_name, summary_flag, **kwargs)
+        inter_metric = get_inter_metric(sel_gans, fitness_name, summary_flag, **kwargs)
+        return intra_metric, inter_metric
+    elif obj_name == 'intra':
+        intra_metric = get_intra_metric(sel_gans, fitness_name, summary_flag, **kwargs)
+        return intra_metric
+    elif obj_name == 'inter':
+        inter_metric = get_inter_metric(sel_gans, fitness_name, summary_flag, **kwargs)
+        return inter_metric
     else:
-        raise ValueError(cost_name)
-
-    return obj
+        raise NotImplementedError
 
 def backward_objective(ensemble, fitness_name, summary_flag, cost_name, **kwargs):
 
@@ -163,7 +120,7 @@ def backward_objective(ensemble, fitness_name, summary_flag, cost_name, **kwargs
     if cost_name == 'diff':
         obj = inter_metric - intra_metric
     elif cost_name == 'ratio':
-        obj = inter_metric / intra_metric
+        obj = inter_metric / intra_metric # todo check cost
     elif cost_name == 'intra':
         obj = -intra_metric
     elif cost_name == 'inter':

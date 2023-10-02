@@ -3,53 +3,55 @@ import time
 import copy
 import pandas as pd
 from tqdm import tqdm
+import torch.nn as nn
+import cv2
 
 from src.general_utils.util_components import *
 from src.general_utils.util_resnet import *
 
-def get_img_autoencoder(model_name, input_dim, h_dim=None, n_classes=1):
+def get_img_autoencoder(model_name, input_dim, h_dim=None, input_channels=1):
     if model_name == "conv":
-        return AutoEncoderImgConv(input_dim, h_dim, n_classes)
+        return AutoEncoderImgConv(input_dim, h_dim, input_channels)
     elif model_name == "fully_conv":
-        return AutoEncoderImgFullyConv(input_dim, n_classes)
+        return AutoEncoderImgFullyConv(input_dim, input_channels)
     elif model_name == "resnet_ae_50":
-        return ResNetAE(downblock=Bottleneck, upblock=DeconvBottleneck, num_layers=[3, 4, 6, 3], n_classes=n_classes)
+        return ResNetAE(downblock=Bottleneck, upblock=DeconvBottleneck, num_layers=[3, 4, 6, 3], input_channels=input_channels)
     elif model_name == "resnet_ae_101":
-        return ResNetAE(downblock=Bottleneck, upblock=DeconvBottleneck, num_layers=[3, 4, 23, 2], n_classes=n_classes)
+        return ResNetAE(downblock=Bottleneck, upblock=DeconvBottleneck, num_layers=[3, 4, 23, 2], input_channels=input_channels)
     else:
         raise ValueError(model_name)
 
 class AutoEncoderImgFullyConv(nn.Module):
-    def __init__(self, input_dim, n_classes=1):
+    def __init__(self, input_dim, input_channels=1):
         super().__init__()
-        # Input: N, n_classes, 256, 256
+        # Input: N, input_channels, 256, 256
         self.encoder = nn.Sequential(
-            nn.Conv2d(n_classes, 16, 3, stride=2, padding=1),  # N, 16, 128, 128
-            nn.ReLU(inplace=True),
+            nn.Conv2d(input_channels, 16, 3, stride=2, padding=1),  # N, 16, 128, 128
+            nn.ReLU(),
             nn.Conv2d(16, 32, 3, stride=2, padding=1),  # N, 32, 64, 64
-            nn.ReLU(inplace=True),
+            nn.ReLU(),
             nn.Conv2d(32, 64, 3, stride=2, padding=1),  # N, 64, 32, 32
-            nn.ReLU(inplace=True),
+            nn.ReLU(),
             nn.Conv2d(64, 128, 3, stride=2, padding=1),  # N, 128, 16, 16
-            nn.ReLU(inplace=True),
+            nn.ReLU(),
             nn.Conv2d(128, 256, 3, stride=2, padding=1),  # N, 256, 8, 8
-            nn.ReLU(inplace=True),
+            nn.ReLU(),
             nn.Conv2d(256, 512, 3, stride=2, padding=1),  # N, 512, 4, 4
         )
 
         # note that output_padding is only used to find output shape, but does not actually add zero-padding to output.
         self.decoder = nn.Sequential(
             nn.ConvTranspose2d(512, 256, 3, stride=2, padding=1, output_padding=1),  # N, 256, 8, 8
-            nn.ReLU(inplace=True),
+            nn.ReLU(),
             nn.ConvTranspose2d(256, 128, 3, stride=2, padding=1, output_padding=1),  # N, 128, 16, 16
-            nn.ReLU(inplace=True),
+            nn.ReLU(),
             nn.ConvTranspose2d(128, 64, 3, stride=2, padding=1, output_padding=1),  # N, 64, 32, 32
-            nn.ReLU(inplace=True),
+            nn.ReLU(),
             nn.ConvTranspose2d(64, 32, 3, stride=2, padding=1, output_padding=1),  # N, 32, 56, 56
-            nn.ReLU(inplace=True),
+            nn.ReLU(),
             nn.ConvTranspose2d(32, 16, 3, stride=2, padding=1, output_padding=1),  # N, 16, 128, 128
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(16, n_classes, 3, stride=2, padding=1, output_padding=1),  # N, n_classes, 256, 256
+            nn.ReLU(),
+            nn.ConvTranspose2d(16, input_channels, 3, stride=2, padding=1, output_padding=1),  # N, input_channels, 256, 256
             nn.Sigmoid() # to put the reconstructed image between 0 and 1
         )
 
@@ -60,14 +62,14 @@ class AutoEncoderImgFullyConv(nn.Module):
 
 
 class AutoEncoderImgConv(nn.Module):
-    def __init__(self, input_dim, h_dim, n_classes=1):
+    def __init__(self, input_dim, h_dim, input_channels=1):
         super().__init__()
-        # Input: N, n_classes, 256, 256
+        # Input: N, input_channels, 256, 256
         self.encoder = nn.Sequential(
-            nn.Conv2d(n_classes, 16, 3, stride=2, padding=1),  # N, 16, 128, 128
-            nn.ReLU(inplace=True),
+            nn.Conv2d(input_channels, 16, 3, stride=2, padding=1),  # N, 16, 128, 128
+            nn.ReLU(),
             nn.Conv2d(16, 32, 3, stride=2, padding=1),  # N, 32, 64, 64
-            nn.ReLU(inplace=True),
+            nn.ReLU(),
             nn.Conv2d(32, 64, 3, stride=2, padding=1),  # N, 64, 32, 32
             nn.Conv2d(64, 128, 3, stride=2, padding=1),  # N, 128, 16, 16
             nn.Conv2d(128, 256, 3, stride=2, padding=1),  # N, 256, 8, 8
@@ -82,10 +84,10 @@ class AutoEncoderImgConv(nn.Module):
             nn.ConvTranspose2d(256, 128, 3, stride=2, padding=1, output_padding=1),  # N, 128, 16, 16
             nn.ConvTranspose2d(128, 64, 3, stride=2, padding=1, output_padding=1),  # N, 64, 32, 32
             nn.ConvTranspose2d(64, 32, 3, stride=2, padding=1, output_padding=1),  # N, 32, 56, 56
-            nn.ReLU(inplace=True),
+            nn.ReLU(),
             nn.ConvTranspose2d(32, 16, 3, stride=2, padding=1, output_padding=1),  # N, 16, 128, 128
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(16, n_classes, 3, stride=2, padding=1, output_padding=1),  # N, n_classes, 256, 256
+            nn.ReLU(),
+            nn.ConvTranspose2d(16, input_channels, 3, stride=2, padding=1, output_padding=1),  # N, input_channels, 256, 256
             nn.Sigmoid()  # to put the reconstructed image between 0 and 1
         )
 
@@ -94,12 +96,12 @@ class AutoEncoderImgConv(nn.Module):
         decoded = self.decoder(encoded)
         return decoded
 class ResNetAE(nn.Module):
-    def __init__(self, downblock, upblock, num_layers, n_classes):
+    def __init__(self, downblock, upblock, num_layers, input_channels):
         super(ResNetAE, self).__init__()
 
         self.in_channels = 64
 
-        self.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.conv1 = nn.Conv2d(input_channels, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU()
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -120,7 +122,7 @@ class ResNetAE(nn.Module):
         )
         self.uplayer_top = DeconvBottleneck(self.in_channels, 64, 1, 2, upsample)
 
-        self.conv1_1 = nn.ConvTranspose2d(64, n_classes, kernel_size=1, stride=1, bias=False)
+        self.conv1_1 = nn.ConvTranspose2d(64, input_channels, kernel_size=1, stride=1, bias=False)
 
     def _make_downlayer(self, block, init_channels, num_layer, stride=1):
         downsample = None
@@ -166,7 +168,7 @@ class ResNetAE(nn.Module):
         x = self.layer4(x)
         return x
 
-    def decode(self, x, image_size=[1, 1, 224, 224]):
+    def decode(self, x, image_size):
         x = self.uplayer1(x)
         x = self.uplayer2(x)
         x = self.uplayer3(x)
@@ -181,7 +183,7 @@ class ResNetAE(nn.Module):
         out = self.decode(z, x.size())
 
         return out
-def train_autoencoder(model, data_loaders, criterion, optimizer, scheduler, num_epochs, early_stopping, model_dir, device):
+def train_autoencoder(model, data_loaders, criterion, optimizer, scheduler, num_epochs, early_stopping, warmup_epoch, model_dir, device):
     since = time.time()
 
     best_model_wts = copy.deepcopy(model.state_dict())
@@ -190,6 +192,7 @@ def train_autoencoder(model, data_loaders, criterion, optimizer, scheduler, num_
     history = {'train_loss': [], 'val_loss': []}
 
     epochs_no_improve = 0
+    best_epoch = 0
     early_stop = False
 
     for epoch in range(num_epochs):
@@ -246,18 +249,19 @@ def train_autoencoder(model, data_loaders, criterion, optimizer, scheduler, num_
 
             # deep copy the model
             if phase == 'val':
-                if epoch_loss < best_loss:
-                    best_epoch = epoch
-                    best_loss = epoch_loss
-                    best_model_wts = copy.deepcopy(model.state_dict())
-                    epochs_no_improve = 0
-                else:
-                    epochs_no_improve += 1
-                    # Trigger early stopping
-                    if epochs_no_improve >= early_stopping:
-                        print(f'\nEarly Stopping! Total epochs: {epoch}%')
-                        early_stop = True
-                        break
+                if epoch > warmup_epoch:
+                    if epoch_loss < best_loss:
+                        best_epoch = epoch
+                        best_loss = epoch_loss
+                        best_model_wts = copy.deepcopy(model.state_dict())
+                        epochs_no_improve = 0
+                    else:
+                        epochs_no_improve += 1
+                        # Trigger early stopping
+                        if epochs_no_improve >= early_stopping:
+                            print(f'\nEarly Stopping! Total epochs: {epoch}%')
+                            early_stop = True
+                            break
 
         if early_stop:
             break
@@ -278,65 +282,81 @@ def train_autoencoder(model, data_loaders, criterion, optimizer, scheduler, num_
 
     return model, history
 
+def evaluate(model, data_loader, report_dir, split, device):
+    from torchmetrics.image import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
+
+    psnr = PeakSignalNoiseRatio(data_range=(-1.0,1.0), reduction='none', dim=[1,2,3])
+    ssim =StructuralSimilarityIndexMeasure(data_range=(-1.0,1.0), reduction='none')
+    mae = torch.nn.L1Loss(reduction='none')
+
+    model.eval()
+    data =  {'PSNR': [], 'SSIM': [], 'MAE': []}
+    for inputs, _ in tqdm(data_loader):
+        with torch.no_grad():
+            inputs = inputs.to(device)
+            outputs = model(inputs.float())
+
+            psnr_score = psnr(outputs.float(), inputs.float()).cpu().detach().numpy()
+            mae_score = mae(outputs.float(), inputs.float()).cpu().detach().numpy()
+            ssim_score = ssim(outputs.float(), inputs.float()).cpu().detach().numpy()
+            mae_score = np.mean(mae_score, axis=(1, 2, 3))
+
+        # Append to list.
+        data['PSNR'].append(psnr_score)
+        data['SSIM'].append(ssim_score)
+        data['MAE'].append(mae_score)
+
+    # Flatten the lists and create a DataFrame
+    df = pd.DataFrame({
+        key: [item for x in value for item in x]
+        for key, value in data.items()
+    })
+    # Compute and add the mean and standard deviation to the DataFrame
+    df.loc['mean'] = df.mean()
+    df.loc['std'] = df.std()
+
+    # Save dataframe history as excel.
+    df.to_excel(os.path.join(report_dir, f'results_{split}.xlsx'), index=False)
+
+    return df
+
 def plot_evaluate_img_autoencoder(model, data_loader, plot_dir, device):
-    # Test loop
+
     model.eval()
     with torch.no_grad():
-        # Sample one batch
         data_iter = iter(data_loader)
-        inputs, labels = data_iter.next()
+        inputs, _ = next(data_iter)
 
         inputs = inputs.to(device)
-        labels = labels.to(device)
-        # Prediction
         outputs = model(inputs.float())
-        # Plot
-        for index, (input, output) in enumerate(zip(inputs, outputs)):
 
-            input = input.cpu().detach().numpy()[0]
-            output = output.cpu().detach().numpy()[0]
+        for index, (x, y) in enumerate(zip(inputs, outputs)):
 
-            plt.figure()
-            plt.gray()
-            plt.subplot(1, 2, 1)
-            plt.imshow(input)
-            plt.axis('off')
-            plt.subplot(1, 2, 2)
-            plt.imshow(output)
-            plt.axis('off')
-            plt.tight_layout()
-            plt.savefig(os.path.join(plot_dir, "{}.png".format(str(index))), dpi=300,  bbox_inches='tight')
-            plt.show()
+            x = x.cpu().detach().numpy()
+            y = y.cpu().detach().numpy()
 
-def plot_evaluate_img_autoencoder_PIL(model, data_loader, plot_dir, device):
-    # Test loop
-    model.eval()
-    with torch.no_grad():
-        # Sample one batch
-        data_iter = iter(data_loader)
-        inputs, labels = data_iter.next()
+            # From -1,1 to 0,255.
+            x = ((x + 1) / 2) * 255
+            y = ((y + 1) / 2) * 255
 
-        inputs = inputs.to(device)
-        labels = labels.to(device)
-        # Prediction
-        outputs = model(inputs.float())
-        # Plot
-        for index, (input, output) in enumerate(zip(inputs, outputs)):
+            # Clamp values outside 0 255.
+            x = np.clip(x, 0, 255).astype(np.uint8)
+            y = np.clip(y, 0, 255).astype(np.uint8)
 
-            input = input.cpu().detach().numpy()[0]
-            output = output.cpu().detach().numpy()[0]
+            if x.shape[0] == 3:
+                x = x.transpose(1, 2, 0)
+                y = y.transpose(1, 2, 0)
+            elif x.shape[0] == 1:
+                x = np.squeeze(x, axis=0)
+                y = np.squeeze(y, axis=0)
 
-            plt.figure()
-            plt.gray()
-            plt.subplot(1, 2, 1)
-            plt.imshow(input)
-            plt.axis('off')
-            plt.subplot(1, 2, 2)
-            plt.imshow(output)
-            plt.axis('off')
-            plt.tight_layout()
-            plt.savefig(os.path.join(plot_dir, "{}.png".format(str(index))), dpi=300,  bbox_inches='tight')
-            plt.show()
+            xy = np.hstack((x, y))
+            if x.shape[-1] == 3:
+                cv2.imwrite(os.path.join(plot_dir, "{}.png".format(str(index))), cv2.cvtColor(xy, cv2.COLOR_RGB2BGR))
+            else:
+                cv2.imwrite(os.path.join(plot_dir, "{}.png".format(str(index))), xy)
+
+
 def plot_training(history, plot_training_dir):
 
     # Training results Loss function

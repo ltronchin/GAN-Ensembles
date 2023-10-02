@@ -1,7 +1,7 @@
 SEED: 42
 DATA:
-  data_dir: ./data/raw/pneumoniamnist
-  name: "pneumoniamnist"
+  data_dir: ./data/raw/breastmnist
+  name: "breastmnist"
   img_size: 32
   num_classes: 2
   img_channels: 1
@@ -14,7 +14,9 @@ PRE:
   apply_rflip: False
 
 MODEL:
-  name: resnet50 #resnet18
+  name: resnet_ae_50
+  h_dim:
+  dropout_rate: 0.25
 
 TRAINER:
   batch_size: 64

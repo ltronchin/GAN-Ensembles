@@ -13,6 +13,7 @@ from datetime import datetime
 import argparse
 from tqdm import tqdm
 from torch.utils.data import random_split
+import collections
 
 import src.general_utils.util_general as util_general
 from src.general_utils import util_path
@@ -40,10 +41,19 @@ def has_tiff_files(dir_path):
             return True
     return False
 
+def has_npy_files(dir_path):
+    """
+    Recursively checks if the directory contains any .npy files.
+    """
+    for root, dirs, files in os.walk(dir_path):
+        if any(x.endswith('.npy') for x in files):
+            return True
+    return False
+
 def get_parser():
     parser = argparse.ArgumentParser(description='Train resnet autoencoder.')
 
-    parser.add_argument('--source_dir', type=str, default='/home/lorenzo/GAN-Ensembles/reports/pneumoniamnist',  help='Directory name to fake samples.')
+    parser.add_argument('--source_dir', type=str, default='./reports/',  help='Directory name to fake samples.')
     parser.add_argument("-cfg", "--cfg_file", type=str, default="./src/configs/")
     parser.add_argument("-save", "--save_dir", type=str, default="./")
     parser.add_argument('--gpu_ids', type=str, default=1, help='gpu ids: e.g. 0  use -1 for CPU')
@@ -79,8 +89,9 @@ if __name__ == "__main__":
     if gpu_ids >= 0:
         # Check if available.
         if not torch.cuda.is_available():
-            raise ValueError('GPU specified but not available.')
-        device = torch.device('cuda:{}'.format(gpu_ids))
+            device = torch.device('cpu')
+        else:
+            device = torch.device('cuda:{}'.format(gpu_ids))
     else:
         device = torch.device('cpu')
 
@@ -101,22 +112,22 @@ if __name__ == "__main__":
     gan_folders = [os.path.join(samples_dir, x, 'fake') for x in gan_aval if any(y in x for y in gan_models)]
     gan_folders = [os.path.join(x, f"step={y}") for x in gan_folders for y in gan_steps]
     # Filter out empty directories
-    gan_folders = [x for x in gan_folders if has_tiff_files(x)]
+    gan_folders = [x for x in gan_folders if has_npy_files(x)]
 
     n_classes = len(gan_folders) + 1
 
     # Dataset.
-
     datasets_real = {
         step: Dataset_(data_name=cfg['DATA']['name'],
                             data_dir=cfg['DATA']['data_dir'],
                             train=True if step == 'train' else False,
+                            split=step,
                             crop_long_edge=cfg['PRE']['crop_long_edge'],
                             resize_size=cfg['PRE']['resize_size'],
                             resizer=cfg['PRE']['pre_resizer'],
                             random_flip=cfg['PRE']['apply_rflip'],
                             normalize=cfg['PRE']['normalize'],
-                            cfgs=cfg)  for step in ["train", "val"]
+                            cfgs=cfg)  for step in ["train", "val", "test"]
     }
 
     dataset_synth = DiscDataset(root_dir=samples_dir, classes=gan_folders, max_samples_per_gan=len(datasets_real['train']))
@@ -125,12 +136,18 @@ if __name__ == "__main__":
 
     data_loaders = {
         'train': torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers),
-        'val': torch.utils.data.DataLoader(datasets_real['val'], batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        'val': torch.utils.data.DataLoader(datasets_real['val'], batch_size=batch_size, shuffle=False, num_workers=num_workers),
+        'test': torch.utils.data.DataLoader(datasets_real['test'], batch_size=batch_size, shuffle=False, num_workers=num_workers)
     }
+    dataiter = iter(data_loaders["train"])
+    input, _ = next(dataiter)
+    print("\n")
+    print("Shape")
+    print(input.shape)
 
     # Model.
-    print('Building and training model')
-    model = ResNet50(in_channels=cfg['DATA']['img_channels'], num_classes=n_classes)
+    print('Building and training model.')
+    model = ResNet50(input_channels=cfg['DATA']['img_channels'], num_classes=n_classes)
     model = model.to(device)
 
     # Loss function.
@@ -143,6 +160,7 @@ if __name__ == "__main__":
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode=cfg['TRAINER']['scheduler']['mode'], patience=cfg['TRAINER']['scheduler']['patience'])
 
     # Train model.
+    results = collections.defaultdict(lambda: [])
     model, history = util_cnn.train_model(
         model=model,
         data_loaders=data_loaders,
@@ -151,6 +169,7 @@ if __name__ == "__main__":
         scheduler=scheduler,
         num_epochs=cfg['TRAINER']['max_epochs'],
         early_stopping=cfg['TRAINER']['early_stopping'],
+        warmup_epoch=cfg['TRAINER']['warmup_epoch'],
         model_dir=report_dir,
         device=device,
         class_real = train_dataset.class_real
@@ -159,8 +178,15 @@ if __name__ == "__main__":
     # Plot Training.
     util_cnn.plot_training(history=history, plot_training_dir=report_dir)
 
-    # Save dataframe history as excel.
-    df = pd.DataFrame.from_dict(history)
-    df.to_excel(os.path.join(report_dir, 'history_perf.xlsx'), index=False)
+    # Test model.
+    test_results = util_cnn.evaluate(dataset_name=dataset_name, model=model, data_loader=data_loaders['test'], device=device, n_classes=n_classes, class_real=train_dataset.class_real)
+
+    # Update report.
+    results["ACC Real"].append(test_results['all'])
+
+    # Save Results
+    report_file = os.path.join(report_dir, 'results.xlsx')
+    results_frame = pd.DataFrame(dict([(k, pd.Series(v)) for k, v in results.items()]))
+    results_frame.to_excel(report_file, index=False)
 
     print("May the force be with you!")

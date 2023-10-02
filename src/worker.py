@@ -167,13 +167,16 @@ class WORKER(object):
 
         if self.global_rank == 0:
             resume = False if self.RUN.freezeD > -1 else True
-            wandb.init(project=self.RUN.project,
-                       entity=self.RUN.entity,
-                       name=self.run_name,
-                       dir=self.RUN.save_dir,
-                       resume=self.best_step > 0 and resume)
+            if not self.RUN.disable_wandb:
+                wandb.init(project=self.RUN.project,
+                           entity=self.RUN.entity,
+                           name=self.run_name,
+                           dir=self.RUN.save_dir,
+                           resume=self.best_step > 0 and resume)
+
 
         self.save_fake_as_tiff = cfgs.RUN.save_fake_as_tiff # added
+        self.save_fake_as_npy = cfgs.RUN.save_fake_as_npy # added
         self.start_time = datetime.now()
 
     def prepare_train_iter(self, epoch_counter):
@@ -1002,7 +1005,8 @@ class WORKER(object):
                              generator_synthesis="N/A",
                              directory=join(self.RUN.save_dir, "samples", self.run_name),
                              device=self.local_rank,
-                             save_fake_as_tiff=self.save_fake_as_tiff)
+                             save_fake_as_tiff=self.save_fake_as_tiff,
+                             save_fake_as_npy=self.save_fake_as_npy)
 
     # -----------------------------------------------------------------------------
     # save fake images to measure metrics for evaluation.
@@ -1011,6 +1015,8 @@ class WORKER(object):
         if self.global_rank == 0:
             if self.save_fake_as_tiff:
                 self.logger.info("save {num_images} generated images in tiff format.".format( num_images=self.num_eval[self.RUN.ref_dataset]))
+            elif self.save_fake_as_npy:
+                self.logger.info("save {num_images} generated images in npy format.".format(num_images=self.num_eval[self.RUN.ref_dataset]))
             else:
                 self.logger.info("save {num_images} generated images in png format.".format(num_images=self.num_eval[self.RUN.ref_dataset]))
         if self.gen_ctlr.standing_statistics:
@@ -1041,7 +1047,8 @@ class WORKER(object):
                                  generator_synthesis=generator_synthesis,
                                  directory=join(self.RUN.save_dir, "samples", self.run_name),
                                  device=self.local_rank,
-                                 save_fake_as_tiff=self.save_fake_as_tiff)
+                                 save_fake_as_tiff=self.save_fake_as_tiff,
+                                 save_fake_as_npy=self.save_fake_as_npy)
 
         misc.make_GAN_trainable(self.Gen, self.Gen_ema, self.Dis)
 

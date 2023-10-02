@@ -20,19 +20,34 @@ def custom_pil_loader(path):
         img = Image.open(f)
         img.load()
         return img
+
+def custom_npy_loader(path):
+    img = np.load(path)
+    return img
+
 class EnsembleDataset(Dataset):
-    def __init__(self, folders, weights):
+    def __init__(self, folders, weights, pil_loader=False):
 
         assert len(folders) == len(weights)
-        assert sum(weights) == 1
+        # assert sum(weights) == 1
+
+        if pil_loader:
+            self.loader = custom_pil_loader
+            self.trsf_list = [transforms.PILToTensor()]
+        else:
+            self.loader = custom_npy_loader
+            self.trsf_list = [torch.from_numpy]
 
         self.folders = folders
         self.weights = weights
 
-        self.trsf_list = [transforms.PILToTensor()]
         self.trsf = transforms.Compose(self.trsf_list)
-
-        self.image_folders = [ImageFolder(root=folder, loader=custom_pil_loader) for folder in folders]
+        self.image_folders = []
+        print('Create the ensemble dataset.')
+        for folder in folders:
+            print('Folder: ', folder)
+            self.image_folders.append(DatasetFolder(root=folder, loader=self.loader, extensions=('.npy', '.tiff'))) #  self.image_folders.append(ImageFolder(root=folder, loader=self.loader))
+        # self.image_folders = [ImageFolder(root=folder, loader=custom_pil_loader) for folder in folders]
 
     def __len__(self):
         return len(self.image_folders[0]) # sum([len(folder) for folder in self.image_folders])
@@ -43,9 +58,10 @@ class EnsembleDataset(Dataset):
         sample_idx = randint(0, len(self.image_folders[folder_idx]) - 1)
 
         image, label = self.image_folders[folder_idx][sample_idx]
-        img_path = self.image_folders[folder_idx].imgs[sample_idx][0]
+        # img_path = self.image_folders[folder_idx].imgs[sample_idx][0]
 
-        return self.trsf(image), label, img_path.split('fake')[0], img_path
+        # return self.trsf(image), label, img_path.split('fake')[0], img_path
+        return self.trsf(image), label
 
 if __name__ == '__main__':
 
@@ -79,7 +95,6 @@ if __name__ == '__main__':
     # x, y, x_paths, x_full_paths = next(data_iter)
 
     # print(Counter(x_paths))
-
     x, y = next(data_iter)
 
     print("May be the force with you.")

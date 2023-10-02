@@ -213,9 +213,9 @@ if __name__ == "__main__":
     # Model.
     print('==> Building and training model...')
     if model_name == 'resnet18':
-        model = ResNet18(in_channels=n_channels, num_classes=n_classes)
+        model = ResNet18(input_channels=n_channels, num_classes=n_classes)
     elif model_name == 'resnet50':
-        model = ResNet50(in_channels=n_channels, num_classes=n_classes)
+        model = ResNet50(input_channels=n_channels, num_classes=n_classes)
     else:
         raise NotImplementedError
     model = model.to(device)
@@ -247,12 +247,17 @@ if __name__ == "__main__":
     util_cnn.plot_training(history=history, plot_training_dir=report_dir)
 
     # Test model.
-    test_results = util_cnn.evaluate(dataset_name=dataset_name, model=model, data_loader=data_loaders['test'], device=device)
+    test_results = util_cnn.evaluate(dataset_name=dataset_name, model=model, data_loader=data_loaders['test'], device=device, n_classes=n_classes, metric_names=['recall', 'precision', 'f1_score', 'geometric_mean', 'auc'])
 
     # Update report.
     results["ACC"].append(test_results['all'])
     for c in classes:
         results["ACC %s" % str(c)].append(test_results[c])
+    results['recall'].append(test_results['recall'])
+    results['precision'].append(test_results['precision'])
+    results['f1_score'].append(test_results['f1_score'])
+    results['geometric_mean'].append(test_results['geometric_mean'])
+    results['auc'].append(test_results['auc'])
 
     # Save Results
     report_file = os.path.join(report_dir, 'results.xlsx')
