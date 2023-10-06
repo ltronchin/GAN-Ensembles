@@ -136,12 +136,13 @@ def resize_images(x, resizer, ToTensor, mean, std, device):
     return x
 
 class LoadEvalModel(object):
-    def __init__(self, eval_backbone, post_resizer, device):
+    def __init__(self, eval_backbone, post_resizer, device, preprocessing=True):
         super(LoadEvalModel, self).__init__()
         self.eval_backbone = eval_backbone
         self.post_resizer = post_resizer
         self.device = device
         self.save_output = SaveOutput()
+        self.preprocessing = preprocessing
 
         if self.eval_backbone in ["InceptionV3_torch", "ResNet50_torch", "SwAV_torch"]:
             self.res = 299 if "InceptionV3" in self.eval_backbone else 224
@@ -204,14 +205,15 @@ class LoadEvalModel(object):
                 repres = self.model.extract_features(x)
                 return repres, None
 
-        if x.shape[1] != 3:
-            x = x.repeat(1, 3, 1, 1)  # grayscale to RGB
+        if self.preprocessing:
+            if x.shape[1] != 3:
+                x = x.repeat(1, 3, 1, 1)  # grayscale to RGB
 
-        if quantize:
-            x = quantize_images(x)
-        else:
-            x = x.detach().cpu().numpy().astype(np.uint8)
-        x = resize_images(x, self.resizer, self.totensor, self.mean, self.std, device=self.device)
+            if quantize:
+                x = quantize_images(x)
+            else:
+                x = x.detach().cpu().numpy().astype(np.uint8)
+            x = resize_images(x, self.resizer, self.totensor, self.mean, self.std, device=self.device)
 
         if self.eval_backbone in ["InceptionV3_torch", "ResNet50_torch", "SwAV_torch"]:
             logits = self.model(x)
