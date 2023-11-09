@@ -409,7 +409,7 @@ def load_worker(local_rank, cfgs, gpus_per_node, run_name, hdf5_path):
                                                   inf_k=int(cfgs.OPTIMIZATION.batch_size * cfgs.LOSS.topk_nu))
 
             if step % cfgs.RUN.save_freq == 0:
-                # visuailize fake images
+                # visualize fake images
                 if global_rank == 0:
                    worker.visualize_fake_images(num_cols=num_cols, current_step=step)
 

@@ -39,3 +39,4 @@ dependencies:
     - bokeh
     - umap-learn
     - torchmetrics
+    - python-gdcm

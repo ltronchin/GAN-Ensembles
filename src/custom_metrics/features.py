@@ -84,13 +84,26 @@ class FeatureStats:
         return obj
 
 
+def load_stats(cache_dir, eval_backbone, post_resizer, max_items, **stats_kwargs):
+    args = dict(eval_backbone=eval_backbone, post_resizer=post_resizer, max_items=max_items, stats_kwargs=stats_kwargs)
+    md5 = hashlib.md5(repr(sorted(args.items())).encode('utf-8'))
+    cache_tag = f"{max_items}-{eval_backbone}-{post_resizer}-{md5.hexdigest()}"
+    cache_file = os.path.join(cache_dir, cache_tag + '.pkl')
+
+    flag = os.path.isfile(cache_file)
+    # Load.
+    if flag:
+        stats = FeatureStats.load(cache_file)
+        return stats
+    else:
+        raise FileNotFoundError
 def compute_feature(dataloader, eval_model, batch_size, quantize, device, cache_dir, max_items=None, **stats_kwargs):
 
     # Initialize.
     if max_items is None:
         max_items = len(dataloader.dataset)
-    if max_items > 50000:
-        max_items = 50000
+
+    max_items = min(max_items, len(dataloader.dataset))
     num_batches = math.ceil(float(max_items) / float(batch_size))
 
     # Try to lookup from cache.
@@ -124,6 +137,16 @@ def compute_feature(dataloader, eval_model, batch_size, quantize, device, cache_
             break
 
         images, labels = images.to(device), labels.to(device)
+        # Clip between -1 and 1
+        #images = torch.clamp(images, -1, 1)
+
+        # im = images[0].cpu().detach().numpy()
+        # im_r = np.transpose(im, (1, 2, 0))
+        # im_r_01 = (im_r + 1) / 2
+        # im_r_0255 = (im_r_01 * 255).astype(np.uint8)
+        # plt.imshow(im_r_0255)
+        # plt.show()
+
         with torch.no_grad():
             features, _ = eval_model.get_outputs(images, quantize=quantize)
         stats.append_torch(features)

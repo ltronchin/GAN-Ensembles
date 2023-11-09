@@ -23,15 +23,6 @@ from src.general_utils import util_cnn
 from src.general_utils.util_data import DiscDataset, MergedDataset
 from src.data_util import Dataset_
 
-
-RUN_NAME_FORMAT = ("{data_name}-" "{framework}-" "{phase}-" "{timestamp}")
-
-def make_run_name(format, data_name, framework, phase):
-    return format.format(data_name=data_name,
-                         framework=framework,
-                         phase=phase,
-                         timestamp=datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
-
 def has_tiff_files(dir_path):
     """
     Recursively checks if the directory contains any .tiff files.
@@ -58,9 +49,8 @@ def get_parser():
     parser.add_argument("-save", "--save_dir", type=str, default="./")
     parser.add_argument('--gpu_ids', type=str, default=1, help='gpu ids: e.g. 0  use -1 for CPU')
     parser.add_argument('--gan_models', type=util_general.parse_comma_separated_list,  default='ACGAN-Mod-ADC,SAGAN,ReACGAN-ADA', help='List of GANs to enable in the ensemble')
-    parser.add_argument('--gan_steps', type=util_general.parse_comma_separated_list, default='100000',   help='Iter or Iters to sample each GAN')
+    parser.add_argument('--gan_steps', type=util_general.parse_comma_separated_list, default='100000', help='Iter or Iters to sample each GAN')
     parser.add_argument("--num_workers", type=int, default=8)
-
     return parser
 
 if __name__ == "__main__":
@@ -81,6 +71,7 @@ if __name__ == "__main__":
     gan_steps = args.gan_steps
     num_workers = args.num_workers
     model_name = cfg['MODEL']['name']
+    task_name = cfg['MODEL']['task']
     dataset_name = cfg['DATA']['name']
     batch_size = cfg['TRAINER']['batch_size']
     gpu_ids = int(args.gpu_ids)
@@ -96,25 +87,12 @@ if __name__ == "__main__":
         device = torch.device('cpu')
 
     # Files and Directories.
-    run_name = make_run_name(
-        RUN_NAME_FORMAT,
-        data_name=dataset_name,
-        framework=model_name,
-        phase="train"
-    )
-    report_dir = os.path.join(args.save_dir, 'backbone', run_name)
+    filename = f'{model_name}__{task_name}'
+    report_dir = os.path.join(args.save_dir, 'backbone', filename)
     util_path.create_dir(report_dir)
 
     # Select only the GAN included in gan_models and available to the disk.
     samples_dir = os.path.join(source_dir, 'samples')
-    gan_aval = os.listdir(samples_dir)
-
-    gan_folders = [os.path.join(samples_dir, x, 'fake') for x in gan_aval if any(y in x for y in gan_models)]
-    gan_folders = [os.path.join(x, f"step={y}") for x in gan_folders for y in gan_steps]
-    # Filter out empty directories
-    gan_folders = [x for x in gan_folders if has_npy_files(x)]
-
-    n_classes = len(gan_folders) + 1
 
     # Dataset.
     datasets_real = {
@@ -129,38 +107,55 @@ if __name__ == "__main__":
                             normalize=cfg['PRE']['normalize'],
                             cfgs=cfg)  for step in ["train", "val", "test"]
     }
-
-    dataset_synth = DiscDataset(root_dir=samples_dir, classes=gan_folders, max_samples_per_gan=len(datasets_real['train']))
-    train_dataset = MergedDataset(copy.deepcopy(dataset_synth), copy.deepcopy(datasets_real['train']))
-    class_real = train_dataset.class_real
-
-    data_loaders = {
-        'train': torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers),
-        'val': torch.utils.data.DataLoader(datasets_real['val'], batch_size=batch_size, shuffle=False, num_workers=num_workers),
-        'test': torch.utils.data.DataLoader(datasets_real['test'], batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    datasets_synth = {
+        step: DiscDataset(root_dir=samples_dir, split=step, gan_models=gan_models, gan_steps=gan_steps, max_samples_per_gan=len(datasets_real[step]))  for step in ["train", "val", "test"]
     }
+    n_classes = len(datasets_synth['train'].classes) + 1
+
+    # Merge the two datasets.
+    datasets = {
+        step: MergedDataset(copy.deepcopy(datasets_synth[step]), copy.deepcopy(datasets_real[step]), model_name=model_name)  for step in ["train", "val", "test"]
+    }
+    class_real = datasets['train'].class_real
+    data_loaders = {
+        step: torch.utils.data.DataLoader(datasets[step], batch_size=batch_size, shuffle=True if step=='train' else False, num_workers=num_workers) for step in ["train", "val", "test"]
+    }
+
     dataiter = iter(data_loaders["train"])
-    input, _ = next(dataiter)
+    x, _ = next(dataiter)
     print("\n")
     print("Shape")
-    print(input.shape)
+    print(x.shape)
 
     # Model.
     print('Building and training model.')
-    model = ResNet50(input_channels=cfg['DATA']['img_channels'], num_classes=n_classes)
+    if model_name == 'ResNet50_torch':
+        model = torch.hub.load("pytorch/vision:v0.10.0", 'resnet50', weights='ResNet50_Weights.DEFAULT')
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, n_classes)
+    elif model_name == 'InceptionV3_torch':
+        model = torch.hub.load("pytorch/vision:v0.10.0", 'inception_v3', weights='Inception_V3_Weights.DEFAULT')
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, n_classes)
+    elif model_name == 'ResNet18_torch':
+        model = torch.hub.load("pytorch/vision:v0.10.0", 'resnet18', weights='ResNet18_Weights.DEFAULT')
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, n_classes)
+    elif model_name == 'ResNet50_custom':
+        model = ResNet50(input_channels=cfg['DATA']['img_channels'], num_classes=n_classes)
+    elif model_name == 'ResNet18_custom':
+        model = ResNet18(input_channels=cfg['DATA']['img_channels'], num_classes=n_classes)
+    else:
+        raise NotImplementedError
+
     model = model.to(device)
 
     # Loss function.
     criterion = nn.CrossEntropyLoss().to(device)
-
-    # Optimizer.
-    optimizer = optim.Adam(model.parameters(), lr=cfg['TRAINER']['optimizer']['lr'], weight_decay=cfg['TRAINER']['optimizer']['weight_decay'])
-
-    # LR Scheduler.
+    optimizer = optim.Adam(model.parameters(), lr=cfg['TRAINER']['optimizer']['lr'])
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode=cfg['TRAINER']['scheduler']['mode'], patience=cfg['TRAINER']['scheduler']['patience'])
 
     # Train model.
-    results = collections.defaultdict(lambda: [])
     model, history = util_cnn.train_model(
         model=model,
         data_loaders=data_loaders,
@@ -172,17 +167,30 @@ if __name__ == "__main__":
         warmup_epoch=cfg['TRAINER']['warmup_epoch'],
         model_dir=report_dir,
         device=device,
-        class_real = train_dataset.class_real
+        transfer_learning_inception_v3=True if model_name == 'InceptionV3_torch' else False
     )
 
-    # Plot Training.
+    #Plot Training.
     util_cnn.plot_training(history=history, plot_training_dir=report_dir)
 
     # Test model.
-    test_results = util_cnn.evaluate(dataset_name=dataset_name, model=model, data_loader=data_loaders['test'], device=device, n_classes=n_classes, class_real=train_dataset.class_real)
+    idx_to_class = {idx: x for idx, x in enumerate(data_loaders['test'].dataset.dataset_synth.classes)}
+    class_real = data_loaders['test'].dataset.class_real
+    idx_to_class[class_real] = 'real'
+    classes = [idx_to_class[i] for i in range(len(idx_to_class))]
+
+    test_results = util_cnn.evaluate(model=model, data_loader=data_loaders['test'], device=device, idx_to_class=idx_to_class)
 
     # Update report.
-    results["ACC Real"].append(test_results['all'])
+    results = collections.defaultdict(lambda: [])
+    results["ACC"].append(test_results['all'])
+    for c in classes:
+        results["ACC %s" % str(c)].append(test_results[c])
+    results['recall'].append(test_results['recall'])
+    results['precision'].append(test_results['precision'])
+    results['specificity'].append(test_results['specificity'])
+    results['f1_score'].append(test_results['f1_score'])
+    results['g_mean'].append(test_results['g_mean'])
 
     # Save Results
     report_file = os.path.join(report_dir, 'results.xlsx')

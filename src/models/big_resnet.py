@@ -72,6 +72,8 @@ class Generator(nn.Module):
         self.num_blocks = len(self.in_dims)
         self.chunk_size = z_dim // (self.num_blocks + 1)
         self.affine_input_dim = self.chunk_size
+        print(self.z_dim)
+        print(self.num_blocks)
         assert self.z_dim % (self.num_blocks + 1) == 0, "z_dim should be divided by the number of blocks"
 
         info_dim = 0

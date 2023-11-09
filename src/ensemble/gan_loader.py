@@ -69,6 +69,7 @@ if __name__ == '__main__':
     reports_dir = '/home/lorenzo/GAN-Ensembles/reports/'
     source_dir = '/home/lorenzo/GAN-Ensembles/reports/'
     samples_dir = os.path.join(source_dir, dataset_name, 'samples')
+    split='train'
     gan_aval = os.listdir(samples_dir)
     init_w = 'uniform'
 
@@ -82,7 +83,7 @@ if __name__ == '__main__':
     ]
 
     # Create the entire path for each gan.
-    gan_folders = [os.path.join(samples_dir, x, 'fake') for x in gan_aval if any(y in x for y in gan_models)]
+    gan_folders = [os.path.join(root_dir, x, f'fake__{split}') for x in gan_aval if any(f'{gan_model}-train-' in x for gan_model in gan_models)]
     gan_folders = [os.path.join(x, f"step={y}") for x in gan_folders for y in gan_steps]
 
     # Initialize weights.

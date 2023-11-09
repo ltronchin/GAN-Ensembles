@@ -31,3 +31,4 @@ pydicom
 bokeh
 umap-learn
 torchmetrics
+python-gdcm

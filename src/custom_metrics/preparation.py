@@ -13,6 +13,7 @@ from src.general_utils import util_autoencoder
 from src.cnn_models.models import ResNet50
 import src.custom_metrics.resize as resize
 
+
 model_versions = {"InceptionV3_torch": "pytorch/vision:v0.10.0",
                   "ResNet50_torch": "pytorch/vision:v0.10.0",
                   "SwAV_torch": "facebookresearch/swav:main"}
@@ -20,93 +21,6 @@ model_versions = {"InceptionV3_torch": "pytorch/vision:v0.10.0",
 model_names = {"InceptionV3_torch": "inception_v3",
                "ResNet50_torch": "resnet50",
                "SwAV_torch": "resnet50"}
-
-CUSTOM_BACKBONE_CONFIG = {
-    # pneumoniamnist
-    'resnet_ae_50_pneumoniamnist': {
-        'source_dir': "./reports/pneumoniamnist/backbone",
-        'model_name': 'resnet_ae_50',
-        'res': 32,
-        'input_dim': (1, 32, 32),
-        'n_classes': None,
-        'channels': 1,
-        'model_path': "pneumoniamnist-resnet_ae_50-train-2023_08_06_07_26_06/model_best_epoch_17.pt"
-    },
-    'disc_resnet_50_pneumoniamnist': {
-        'source_dir': "./reports/pneumoniamnist/backbone",
-        'model_name': 'disc_resnet_50',
-        'res': 32,
-        'input_dim': (1, 32, 32),
-        'channels': 1,
-        'n_classes': 111,
-        'model_path': "pneumoniamnist-disc_resnet_50-train-2023_08_08_11_32_43/model_best_epoch_2.pt"
-    },
-    'cnn_resnet_50_pneumoniamnist': {
-        'source_dir': "./reports/pneumoniamnist/backbone",
-        'model_name': 'cnn_resnet_50',
-        'res': 32,
-        'input_dim': (1, 32, 32),
-        'channels': 1,
-        'n_classes': 2,
-        'model_path': "pneumoniamnist-cnn_resnet_50-train-2023_08_16_15_35_41/model_best_epoch_5.pt"
-    },
-    # retinamnist
-    'resnet_ae_50_retinamnist': {
-        'source_dir': "./reports/retinamnist/backbone",
-        'model_name': 'resnet_ae_50',
-        'res': 32,
-        'input_dim': (3, 32, 32),
-        'n_classes': None,
-        'channels': 3,
-        'model_path': "retinamnist-resnet_ae_50-train-2023_09_29_09_00_44/model_best_epoch_99.pt"
-    },
-    'disc_resnet_50_retinamnist': {
-        'source_dir': "./reports/retinamnist/backbone",
-        'model_name': 'disc_resnet_50',
-        'res': 32,
-        'input_dim': (3, 32, 32),
-        'channels': 3,
-        'n_classes': 111,
-        'model_path': "retinamnist-disc_resnet_50-train-2023_09_29_08_45_23/model_best_epoch_29.pt"
-    },
-    'cnn_resnet_50_retinamnist': {
-        'source_dir': "./reports/retinamnist/backbone",
-        'model_name': 'cnn_resnet_50',
-        'res': 32,
-        'input_dim': (3, 32, 32),
-        'channels': 3,
-        'n_classes': 5,
-        'model_path': "retinamnist-cnn_resnet_50-train-2023_09_29_08_54_25/model_best_epoch_27.pt"
-    },
-    # breastmnist
-    'resnet_ae_50_breastmnist': {
-        'source_dir': "./reports/breastmnist/backbone",
-        'model_name': 'resnet_ae_50',
-        'res': 32,
-        'input_dim': (1, 32, 32),
-        'n_classes': None,
-        'channels': 1,
-        'model_path': "breastmnist-resnet_ae_50-train-2023_09_29_09_00_46/model_best_epoch_97.pt"
-    },
-    'disc_resnet_50_breastmnist': {
-        'source_dir': "./reports/breastmnist/backbone",
-        'model_name': 'disc_resnet_50',
-        'res': 32,
-        'input_dim': (1, 32, 32),
-        'channels': 1,
-        'n_classes': 111,
-        'model_path': "breastmnist-disc_resnet_50-train-2023_09_29_09_00_48/model_best_epoch_41.pt"
-    },
-    'cnn_resnet_50_breastmnist': {
-        'source_dir': "./reports/breastmnist/backbone",
-        'model_name': 'cnn_resnet_50',
-        'res': 32,
-        'input_dim': (1, 32, 32),
-        'channels': 1,
-        'n_classes': 2,
-        'model_path': "breastmnist-cnn_resnet_50-train-2023_09_29_08_45_34/model_best_epoch_49.pt"
-    }
-}
 
 SWAV_CLASSIFIER_URL = "https://dl.fbaipublicfiles.com/deepcluster/swav_800ep_eval_linear.pth.tar"
 
@@ -136,19 +50,43 @@ def resize_images(x, resizer, ToTensor, mean, std, device):
     return x
 
 class LoadEvalModel(object):
-    def __init__(self, eval_backbone, post_resizer, device):
+    def __init__(self, eval_backbone, post_resizer, device, **kwargs):
         super(LoadEvalModel, self).__init__()
         self.eval_backbone = eval_backbone
         self.post_resizer = post_resizer
         self.device = device
         self.save_output = SaveOutput()
 
-        if self.eval_backbone in ["InceptionV3_torch", "ResNet50_torch", "SwAV_torch"]:
+        if self.eval_backbone in ["InceptionV3_torch", "InceptionV3_torch__medical", "InceptionV3_torch__truefake",  "ResNet50_torch", "ResNet50_torch__medical", "ResNet50_torch__truefake", "SwAV_torch"]:
             self.res = 299 if "InceptionV3" in self.eval_backbone else 224
             mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
-
             try:
-                self.model = torch.hub.load(model_versions[self.eval_backbone], model_names[self.eval_backbone], pretrained=True)
+                if self.eval_backbone == 'InceptionV3_torch':
+                    self.model = torch.hub.load(model_versions[self.eval_backbone], model_names[self.eval_backbone], weights='Inception_V3_Weights.DEFAULT')
+
+                elif self.eval_backbone == 'ResNet50_torch':
+                    self.model = torch.hub.load(model_versions[self.eval_backbone], model_names[self.eval_backbone], weights='ResNet50_Weights.DEFAULT')
+
+                elif self.eval_backbone in ["InceptionV3_torch__medical", "InceptionV3_torch__truefake", "ResNet50_torch__medical", "ResNet50_torch__truefake"]:
+                    import torch.nn as nn
+                    eval_backbone = self.eval_backbone.split("__")[0]
+                    eval_backbone_task = self.eval_backbone.split("__")[1]
+
+                    if eval_backbone_task == 'medical':
+                        n_classes = kwargs['n_classes']
+                    elif eval_backbone_task == 'truefake':
+                        n_classes = 111
+                    else:
+                        raise NotImplementedError
+                    eval_backbone_dir = kwargs['eval_backbone_dir']
+
+                    self.model = torch.hub.load(model_versions[eval_backbone], model_names[eval_backbone])
+                    num_ftrs = self.model.fc.in_features
+                    self.model.fc = nn.Linear(num_ftrs, n_classes)
+                    self.model.load_state_dict(torch.load(os.path.join(eval_backbone_dir, f"{self.eval_backbone}", f"model_best.pt"),  map_location=self.device))
+                else:
+                    raise ModuleNotFoundError
+
             except ModuleNotFoundError: # https://pytorch.org/docs/stable/hub.html # custom code to manage cache error
                 if self.eval_backbone == "SwAV_torch":
                     self.model = torch.hub.load("swav_main",  model_names[self.eval_backbone], pretrained=True, source='local')
@@ -169,40 +107,13 @@ class LoadEvalModel(object):
             self.totensor = transforms.ToTensor()
             self.mean = torch.Tensor(mean).view(1, 3, 1, 1).to(self.device)
             self.std = torch.Tensor(std).view(1, 3, 1, 1).to(self.device)
-
         else:
-            config = CUSTOM_BACKBONE_CONFIG.get(self.eval_backbone)
-            if config is None:
-                raise NotImplementedError
-            self.res = config['res']
-            model_name = config['model_name']
-            if model_name in ['disc_resnet_50', 'cnn_resnet_50']:
-                self.model = ResNet50(input_channels=config['channels'], num_classes=config['n_classes'])
-                self.model.load_state_dict(torch.load(os.path.join(config['source_dir'], config['model_path']), map_location=self.device))
-            elif model_name in ['resnet_ae_50']:
-                self.model = util_autoencoder.get_img_autoencoder(model_name=model_name, input_dim=config['input_dim'], h_dim=None, input_channels=config['channels'])
-                self.model.load_state_dict(torch.load(os.path.join(config['source_dir'], config['model_path']), map_location=self.device))
-            else:
-                raise NotImplementedError
-            self.model = self.model.to(self.device)
+            raise NotImplementedError
 
     def eval(self):
         self.model.eval()
 
     def get_outputs(self, x, quantize=False):
-
-        # Get keys from dict.
-        custom_backbones_keys = list(CUSTOM_BACKBONE_CONFIG.keys())
-
-        if self.eval_backbone in custom_backbones_keys:
-            config = CUSTOM_BACKBONE_CONFIG.get(self.eval_backbone)
-            if config['model_name'] in ['resnet_ae_50']:
-                repres = self.model.encode(x)  # BATCH_SIZE x n_feat x 1 x 1
-                repres = repres.view(repres.size(0), -1) # BATCH_SIZE x n_feat
-                return repres, None
-            else:
-                repres = self.model.extract_features(x)
-                return repres, None
 
         if x.shape[1] != 3:
             x = x.repeat(1, 3, 1, 1)  # grayscale to RGB
@@ -213,7 +124,7 @@ class LoadEvalModel(object):
             x = x.detach().cpu().numpy().astype(np.uint8)
         x = resize_images(x, self.resizer, self.totensor, self.mean, self.std, device=self.device)
 
-        if self.eval_backbone in ["InceptionV3_torch", "ResNet50_torch", "SwAV_torch"]:
+        if self.eval_backbone in ["InceptionV3_torch", "InceptionV3_torch__medical", "InceptionV3_torch__truefake", "ResNet50_torch", "ResNet50_torch__medical", "ResNet50_torch__truefake",  "SwAV_torch"]:
             logits = self.model(x)
             if len(self.save_output.outputs) > 1:
                 repres = []

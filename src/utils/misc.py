@@ -487,7 +487,10 @@ def save_images(data_loader, generator, discriminator, is_generate, num_images, 
     num_batches = math.ceil(float(num_images) / float(batch_size))
     if RUN.distributed_data_parallel: num_batches = num_batches//OPTIMIZATION.world_size + 1
     if is_generate:
-        image_type = "fake"
+        if RUN.split is not None:
+            image_type = f"fake__{RUN.split}" # added
+        else:
+            image_type = "fake"
         # added
         if RUN.step_to_load is not None:
             directory = join(directory, image_type, f"step={RUN.step_to_load}")

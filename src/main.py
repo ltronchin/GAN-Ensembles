@@ -90,6 +90,7 @@ def load_configs_initialize_training():
     parser.add_argument("--save_fake_as_tiff",  action="store_true", help="if save fake images as tidd") # added
     parser.add_argument("--save_fake_as_npy",  action="store_true", help="if save real images as npy") # added
     parser.add_argument("--step_to_load", type=str, help="step to load in evaluation phase")  # added
+    parser.add_argument("--split", type=str, default=None, help="split of synthetic data")  # added
     parser.add_argument("-v", "--vis_fake_images", action="store_true", help="visualize image canvas")
     parser.add_argument("-knn", "--k_nearest_neighbor", action="store_true", help="conduct k-nearest neighbor analysis")
     parser.add_argument("-itp", "--interpolation", action="store_true", help="conduct interpolation analysis")

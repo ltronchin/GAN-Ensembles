@@ -27,7 +27,8 @@ if __name__ == "__main__":
 
     reports_dir = './reports/'
     dataset_name = 'pneumoniamnist'
-    filename =  'umap_imgs_train_ResNet50_torch_friendly_50000' # 'umap_train_InceptionV3_torch_friendly_50000' # 'umap_train_SwAV_torch_friendly_50000' # 'umap_train_cnn_resnet_50_pneumoniamnist_friendly_50000' # 'umap_train_resnet_ae_50_pneumoniamnist_friendly_50000'
+    n_samples = '4708'
+    filename =  f'umap_imgs_train_friendly_{n_samples}' # 'umap_train_InceptionV3_torch_friendly_50000' # 'umap_train_SwAV_torch_friendly_50000' # 'umap_train_cnn_resnet_50_pneumoniamnist_friendly_50000' # 'umap_train_resnet_ae_50_pneumoniamnist_friendly_50000'
 
     # Load dataframe.
     df = pd.read_excel(os.path.join(os.path.join(reports_dir, dataset_name, 'umap_embeddings', filename + '.xlsx')), engine='openpyxl')

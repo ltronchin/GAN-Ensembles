@@ -23,12 +23,16 @@ def build_resizer(resizer, backbone, size):
             return make_resizer("PIL", "bilinear", (size, size))
         elif backbone == "InceptionV3_torch":
             return make_resizer("PIL", "lanczos", (size, size))
+        elif backbone in ["InceptionV3_torch__medical", "InceptionV3_torch__truefake"]:
+            return make_resizer("PIL", "lanczos", (size, size))
         elif backbone == "ResNet50_torch":
+            return make_resizer("PIL", "bilinear", (size, size))
+        elif backbone in ["ResNet50_torch__medical", "ResNet50_torch__truefake"]:
             return make_resizer("PIL", "bilinear", (size, size))
         elif backbone == "SwAV_torch":
             return make_resizer("PIL", "bilinear", (size, size))
         else:
-            raise ValueError(f"Invalid resizer {resizer} specified") # todo: add more backbone
+            raise ValueError(f"Invalid resizer {resizer} specified")
     elif resizer == "clean":
         return make_resizer("PIL", "bicubic", (size, size))
     elif resizer == "legacy":

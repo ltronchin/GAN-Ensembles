@@ -48,6 +48,8 @@ class Configurations(object):
         self.DATA.fold_dir = None
         self.DATA.classes = None
         self.DATA.modes = None
+        self.DATA.resizer_library = None
+        self.DATA.clahe = None
 
         # -----------------------------------------------------------------------------
         # Model settings
@@ -340,7 +342,7 @@ class Configurations(object):
         # -----------------------------------------------------------------------------
         self.MISC = misc.make_empty_object()
 
-        self.MISC.no_proc_data = ["CIFAR10", "CIFAR100", "Tiny_ImageNet"]
+        self.MISC.no_proc_data = ["CIFAR10", "CIFAR100", "Tiny_ImageNet", "AIforCOVID"]
         self.MISC.base_folders = ["checkpoints", "figures", "logs", "moments", "samples", "values"]
         self.MISC.classifier_based_GAN = ["AC", "2C", "D2DCE"]
         self.MISC.info_params = ["info_discrete_linear", "info_conti_mu_linear", "info_conti_var_linear"]
@@ -405,8 +407,7 @@ class Configurations(object):
                     if hasattr(self.super_cfgs[super_cfg_name], attr):
                         setattr(self.super_cfgs[super_cfg_name], attr, value)
                     else:
-                        raise AttributeError("There does not exist '{cls}.{attr}' attribute in the config.py.". \
-                                             format(cls=super_cfg_name, attr=attr))
+                        raise AttributeError("There does not exist '{cls}.{attr}' attribute in the config.py.". format(cls=super_cfg_name, attr=attr))
 
     def define_losses(self):
         if self.MODEL.d_cond_mtd == "MH" and self.LOSS.adv_loss == "MH":

@@ -16,231 +16,206 @@ import cv2
 import re
 import torch
 
+def count_ensemble(file_path):
+    import re
+    try:
+        with open(file_path, 'r') as file:
+            content = file.read()
+            gan_with_steps = re.findall(r"[\w-]+(?=__[0-9]+)", content)
+            return len(gan_with_steps)
+    except FileNotFoundError:
+        return "The file was not found."
+    except Exception as e:
+        return f"An error occurred: {e}"
+
 # For aspect ratio 4:3.
-column_width_pt = 516.0
-pt_to_inch = 1 / 72.27
-column_width_inches = column_width_pt * pt_to_inch
-aspect_ratio = 4 / 3
-sns.set(style="whitegrid", font_scale=1.6, rc={"figure.figsize": (column_width_inches, column_width_inches / aspect_ratio)})
-# sns.set_context("paper")
-# sns.set_theme(style="ticks")
+# column_width_pt = 516.0
+# pt_to_inch = 1 / 72.27
+# column_width_inches = column_width_pt * pt_to_inch
+# aspect_ratio = 4 / 3
+# sns.set(style="whitegrid", font_scale=1.6, rc={"figure.figsize": (column_width_inches, column_width_inches / aspect_ratio)})
+sns.set_context("paper")
+sns.set_theme(style="ticks")
 # For Latex.
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 rc('text', usetex=True)
 
 # Parameters
-dataset_name = 'pneumoniamnist'
-foldername = 'downstream_task_randomness_warmup_weighted'
-reports_dir = f'./reports/{dataset_name}/{foldername}/'
-eval_backbone = f'cnn_resnet_50_{dataset_name}' # InceptionV3_torch, ResNet50_torch, SwAV_torch, resnet_ae_50_pneumoniamnist, disc_resnet_50_pneumoniamnist, cnn_resnet_50_pneumoniamnist
+dataset_name =  'breastmnist' # 'pneumoniamnist'
+foldername = 'downstream_task_competitors'
+reports_dir = os.path.join('./reports', dataset_name, foldername)
+gan_models = ['MHGAN','SNGAN','StyleGAN2-D2DCE','ReACGAN-ADA','ReACGAN-ADC','ReACGAN-DiffAug','ACGAN-Mod','ReACGAN','BigGAN-DiffAug','BigGAN-Info','StyleGAN2-DiffAug','ACGAN-Mod-TAC','BigGAN','ReACGAN-TAC','BigGAN-ADA','StyleGAN2-Info','ACGAN-Mod-ADC','StyleGAN2-ADA','ReACGAN-Info','StyleGAN2','ContraGAN','SAGAN']
+gan_steps = ['20000', '40000', '60000', '80000', '100000']
+metric_name = 'f1_score'
 
-step_to_plot_list = ['20000', '40000', '60000', '80000', '100000']
-metric_name_list = ['f1_score'] # 'f1_score' #'ACC'
-plot_mean_gan_list =  [False] # [True, False]
-
+# Results dictionary.
+data = {
+    metric_name: [],
+    'exp_name': [],
+    'models': [],
+    'steps': [],
+    'name_obj': [],
+    'n': []
+}
 folders = os.listdir(reports_dir)
-pattern = re.compile(
-    r'(?P<dataset>\w+)-'
-    r'(?P<gan>.+?)-'
-    r'(?P<step>[\d,]+)-'
-    r'(?P<fitness_name>\w+)-'
-    r'(?P<cost_name>\w+)-'
-    r'(?P<eval_backbone>[\w_]+)'
-)
 
-for step_to_plot, metric_name, plot_mean_gan in product(step_to_plot_list, metric_name_list, plot_mean_gan_list):
+for folder in folders:
 
-    data = {
-        metric_name: [],
-        'exp': [],
-        'fitness_name': [],
-        'cost_name': [],
-        'eval_backbone': []
-    }
+    # Skip if not folder.
+    if not os.path.isdir(os.path.join(reports_dir, folder)):
+        continue
+    # Read the results.xlsx file
+    try:
+        results_path = os.path.join(reports_dir, folder, "results.xlsx")
+        results_df = pd.read_excel(results_path)
+    except FileNotFoundError:
+        print(f'FileNotFoundError: {folder}')
+        continue
 
-    for folder in folders:
+    # Capture the filenames.
+    if folder == 'real':
+        exp_name = 'Real'
+        models = 'NA'
+        steps = 'NA'
+        n = 1
+    elif 'random' in folder:
+          n = folder.split('__')[-1]
+          exp_name = f'Random {n}'
+          models = 'NA'
+          steps = 'NA'
+    else:
+        p = folder.split('--')
+        if p[0] == 'single_gan':
+            exp_name = 'Mean GAN'
+            n = 1
+        elif p[0] == 'naive_models':
+            exp_name = 'Naive models'
+            n = 22
+        elif p[0] == 'naive_steps':
+            exp_name = 'Naive steps'
+            n = 5
+        elif p[0] == 'naive_models_steps':
+            exp_name = 'Naive'
+            n = 110
+        else:
+            raise ValueError(f'p[0]={p[0]} not supported')
+        models = p[1].split('__')[-1]
+        steps = p[2].split('__')[-1]
+    name_obj = 'NA'
 
-        try:
-            # Read the results.xlsx file
-            results_path = os.path.join(reports_dir, folder, "results.xlsx")
-            results_df = pd.read_excel(results_path)
+    # Extract metric values.
+    values = results_df[metric_name].values[:-2]
+    data[metric_name].append(values)
+    data['exp_name'].append(np.repeat(exp_name, len(values)))
+    data['models'].append(np.repeat(models, len(values)))
+    data['steps'].append(np.repeat(steps, len(values)))
+    data['name_obj'].append(np.repeat(name_obj, len(values)))
+    data['n'].append(np.repeat(n, len(values)))
 
-            # Extract metric values.
-            if 'real' in folder:
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('Real', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat('Real', len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat('Real', len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat('Real', len(results_df[metric_name].values[:-2])))
-                continue
+report_dir_ensemble = os.path.join('./reports', dataset_name, 'downstream_task_ensemble')
+folders = os.listdir(report_dir_ensemble)
+# filter out all the alements that has dim_reduction == False
+folders = [folder for folder in folders if 'dim_reduction__True' not in folder]
 
-            match = re.search(pattern, folder)
-            gan = match.group("gan")
-            step = match.group("step")
-            fitness_name = match.group("fitness_name")
-            cost_name = match.group("cost_name")
-            eval_backbone = match.group("eval_backbone")
+for folder in folders:
+    # Skip if not folder.
+    if not os.path.isdir(os.path.join(report_dir_ensemble, folder)):
+        continue
 
-            if step != step_to_plot:
-                continue
-            if eval_backbone == 'disc_resnet_50_pneumoniamnist_friendly':
-                continue
+    # Read the results.xlsx file
+    try:
+        results_path = os.path.join(report_dir_ensemble, folder, "results.xlsx")
+        results_df = pd.read_excel(results_path)
+    except FileNotFoundError:
+        print(f'FileNotFoundError: {folder}')
+        continue
 
-            print('\n')
-            print(f"gan={gan}")
-            print(f"step={step}")
-            print(f"fitness_name={fitness_name}")
-            print(f"cost_name={cost_name}")
-            print(f"eval_backbone={eval_backbone}")
+    # Red ensemble.txt file to load the number of GANs.
+    n = count_ensemble(os.path.join(report_dir_ensemble, folder, "ensemble.txt"))
 
+    # Capture the filenames.
+    p = folder.split('-')
+    name_obj = p[2].split('__')
+    if  len(name_obj) == 2:
+        name_obj = name_obj[-1]
+    elif len(name_obj) == 3:
+        name_obj = name_obj[1] + '__' +  name_obj[2]
+    else:
+        raise ValueError(f'len(name_obj)={len(name_obj)} not supported')
+    eval_backbone = p[-3]
+    if eval_backbone == 'InceptionV3_torch':
+        exp_name = 'InceptionV3'
+    elif eval_backbone == f'ResNet50_torch':
+        exp_name = 'ResNet50'
+    elif eval_backbone == 'SwAV_torch':
+        exp_name = 'SwAV'
+    elif eval_backbone == f'InceptionV3_torch__medical':
+        exp_name = 'InceptionV3-Med'
+    elif eval_backbone == f'ResNet50_torch__medical':
+        exp_name = 'ResNet50-Med'
+    else:
+        raise ValueError(f'eval_backbone={eval_backbone} not supported')
+    models = 'ensemble'
+    steps = 'ensemble'
 
-            if 'all' in folder:
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('Naive', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat(fitness_name, len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat(cost_name, len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat(eval_backbone, len(results_df[metric_name].values[:-2])))
+    values = results_df[metric_name].values[:-2]
+    data[metric_name].append(values)
+    data['exp_name'].append(np.repeat(exp_name, len(values)))
+    data['models'].append(np.repeat(models, len(values)))
+    data['steps'].append(np.repeat(steps, len(values)))
+    data['name_obj'].append(np.repeat(name_obj, len(values)))
+    data['n'].append(np.repeat( n, len(values)))
 
-            elif fitness_name == 'fid' and eval_backbone=='resnet_ae_50_pneumoniamnist_friendly'  and cost_name == 'ratio':
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('DGE DDTI', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat(fitness_name, len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat(cost_name, len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat(eval_backbone, len(results_df[metric_name].values[:-2])))
+# Flatten all the list inside data.
+data = {k: np.concatenate(data[k]) for k in list(data.keys())}
+df = pd.DataFrame(data=data)
 
-            elif fitness_name == 'fid' and eval_backbone=='SwAV_torch_friendly'  and cost_name == 'ratio':
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('DGE DITI', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat(fitness_name, len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat(cost_name, len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat(eval_backbone, len(results_df[metric_name].values[:-2])))
+# Drop some the rows.
+#df = df[~df.exp_name.str.contains('Random')]
 
-            elif fitness_name == 'fid' and eval_backbone=='InceptionV3_torch_friendly'  and cost_name == 'ratio':
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('DGE DITD', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat(fitness_name, len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat(cost_name, len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat(eval_backbone, len(results_df[metric_name].values[:-2])))
+# Turn the columns n to int.
+df['n'] = df['n'].astype(int)
 
-            elif fitness_name == 'fid' and eval_backbone=='cnn_resnet_50_pneumoniamnist_friendly'  and cost_name == 'ratio':
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('DGE DDTD', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat(fitness_name, len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat(cost_name, len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat(eval_backbone, len(results_df[metric_name].values[:-2])))
+for name_obj in ['dc_inter', 'fid_inter', 'dc_inter__dc_intra', 'fid_inter__fid_intra']:
 
-            elif fitness_name == 'fid' and eval_backbone=='resnet_ae_50_pneumoniamnist_friendly' and cost_name == 'intra':
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('DGE-Intra DDTI', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat(fitness_name, len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat(cost_name, len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat(eval_backbone, len(results_df[metric_name].values[:-2])))
+    df_obj = df[(df.name_obj == name_obj) | (df.name_obj == 'NA')]
 
-            elif fitness_name == 'fid' and eval_backbone=='SwAV_torch_friendly' and cost_name == 'intra':
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('DGE-Intra DITI', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat(fitness_name, len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat(cost_name, len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat(eval_backbone, len(results_df[metric_name].values[:-2])))
+    mean_gan = np.mean(df_obj[df_obj.exp_name == 'Mean GAN'][metric_name])
+    mean_val = df_obj.groupby(['exp_name'])[metric_name].median().reset_index()
+    df_n = df_obj.groupby(['exp_name'])['n'].mean().reset_index()
+    sorted_exp = mean_val.sort_values(metric_name, ascending=True)['exp_name'].values
 
-            elif fitness_name == 'fid' and eval_backbone=='InceptionV3_torch_friendly' and cost_name == 'intra':
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('DGE-Intra DITD', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat(fitness_name, len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat(cost_name, len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat(eval_backbone, len(results_df[metric_name].values[:-2])))
+    # Order df_n according sorted_exp.
+    mean_n = []
+    for exp_name in sorted_exp:
+        mean_n.append(df_n[df_n.exp_name == exp_name]['n'].values[0])
 
-            elif fitness_name == 'fid' and eval_backbone=='cnn_resnet_50_pneumoniamnist_friendly' and cost_name == 'intra':
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('DGE-Intra DDTD', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat(fitness_name, len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat(cost_name, len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat(eval_backbone, len(results_df[metric_name].values[:-2])))
+    fig, ax1 = plt.subplots()
 
-            elif fitness_name == 'fid' and eval_backbone == 'resnet_ae_50_pneumoniamnist_friendly' and cost_name == 'inter':
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('DGE-Inter DDTI', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat(fitness_name, len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat(cost_name, len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat(eval_backbone, len(results_df[metric_name].values[:-2])))
+    # Boxplot for the metric
+    sns.boxplot(data=df_obj, x="exp_name", y=metric_name, order=sorted_exp, showfliers=False, ax=ax1)
+    ax1.axhline(mean_gan, color='r', linestyle='--', label=f'Mean {metric_name}')
+    ax1.set_ylabel(metric_name)
+    ax1.set_xlabel('Experiments')
+    ax1.tick_params(axis='x', rotation=90)
 
-            elif fitness_name == 'fid' and eval_backbone == 'SwAV_torch_friendly' and cost_name == 'inter':
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('DGE-Inter DITI', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat(fitness_name, len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat(cost_name, len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat(eval_backbone, len(results_df[metric_name].values[:-2])))
+    # Secondary axis for the number of GANs
+    ax2 = ax1.twinx()
+    ax2.plot(sorted_exp, mean_n, color='b', linestyle='--', label='Number of GANs')
+    ax2.set_ylabel('Number of GANs')
 
-            elif fitness_name == 'fid' and eval_backbone == 'InceptionV3_torch_friendly' and cost_name == 'inter':
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('DGE-Inter DITD', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat(fitness_name, len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat(cost_name, len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat(eval_backbone, len(results_df[metric_name].values[:-2])))
+    # Labels & Legend
+    fig.tight_layout()
+    handles1, labels1 = ax1.get_legend_handles_labels()
+    handles2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(handles1 + handles2, labels1 + labels2)
 
-            elif fitness_name == 'fid' and eval_backbone == 'cnn_resnet_50_pneumoniamnist_friendly' and cost_name == 'inter':
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('DGE-Inter DDTD', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat(fitness_name, len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat(cost_name, len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat(eval_backbone, len(results_df[metric_name].values[:-2])))
+    # Save the plot
+    plot_filename = f'plot_folder-{foldername}-metric__{metric_name}-name_obj__{name_obj}.pdf'
+    plot_path = os.path.join(reports_dir, plot_filename)
+    fig.savefig(plot_path, dpi=400, format='pdf', bbox_inches='tight')
 
-            else:
-                data[metric_name].append(results_df[metric_name].values[:-2])
-                data['exp'].append(np.repeat('Mean GAN', len(results_df[metric_name].values[:-2])))
-                data['fitness_name'].append(np.repeat(fitness_name, len(results_df[metric_name].values[:-2])))
-                data['cost_name'].append(np.repeat(cost_name, len(results_df[metric_name].values[:-2])))
-                data['eval_backbone'].append(np.repeat(eval_backbone, len(results_df[metric_name].values[:-2])))
-
-        except Exception as e:
-            print('\n')
-            print(e)
-            print("ERROR in folder:")
-            print(folder)
-
-            continue
-
-    # Flatten all the list inside data.
-    data = {k: np.concatenate(data[k]) for k in list(data.keys())}
-    df = pd.DataFrame(data=data)
-    median_val_gan_mean = np.median(df[df.exp == 'Mean GAN'][metric_name])
-
-    if not plot_mean_gan:
-        df.drop(df[df.exp == 'Mean GAN'].index, inplace=True)
-    #df.drop(df[df.eval_backbone == 'SwAV_torch_friendly'].index, inplace=True)
-    df.drop(df[df.eval_backbone == 'cnn_resnet_50_pneumoniamnist_friendly'].index, inplace=True)
-    #df.drop(df[df.eval_backbone == 'resnet_ae_50_pneumoniamnist_friendly'].index, inplace=True)
-    #df.drop(df[df.eval_backbone == 'InceptionV3_torch_friendly'].index, inplace=True)
-
-    df.drop(df[df.cost_name == 'intra'].index, inplace=True)
-    df.drop(df[df.cost_name == 'inter'].index, inplace=True)
-    #df.drop(df[df.cost_name == 'ratio'].index, inplace=True)
-
-    medians = df.groupby(['exp'])[metric_name].median().reset_index()
-    sorted_exp = medians.sort_values(metric_name, ascending=True)['exp'].values
-
-    # Plot
-    fig = plt.figure()
-    sns.boxplot(data=df, x="exp", y=metric_name, order=sorted_exp)
-    plt.axhline(median_val_gan_mean,color='r', linestyle='--', label='Median GAN')
-    plt.tight_layout()  # To adjust layout to accommodate the legend
-    plt.xticks(rotation=45)
-    if metric_name == 'ACC':
-        plt.ylabel('Accuracy')
-    elif metric_name == 'f1_score':
-        plt.ylabel('F1 score')
-    elif metric_name == 'precision':
-        plt.ylabel('Precision')
-    elif metric_name == 'recall':
-        plt.ylabel('Recall')
-    elif metric_name == 'auc':
-        plt.ylabel('AUC')
-    elif metric_name == 'geometric_mean':
-        plt.ylabel('Geometric mean')
-    plt.legend()
-    plt.ylim([0.6,1.0])
-    plt.xlabel('Experiments')
-    fig.savefig(os.path.join(reports_dir, f'plot__folder_{foldername}__metric_{metric_name}__ganstep_{step_to_plot}__addmeangan_{plot_mean_gan}.pdf'), dpi=400, format='pdf', bbox_inches='tight')
+    # Show the plot
     plt.show()
 
 print("May the force be with you.")

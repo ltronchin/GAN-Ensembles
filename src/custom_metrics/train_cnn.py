@@ -14,20 +14,15 @@ import yaml
 from datetime import datetime
 import pandas as pd
 import collections
+import copy
 
 from src.cnn_models.models import ResNet18, ResNet50
 from src.general_utils import util_general
 from src.general_utils import util_cnn
 from src.data_util import Dataset_
 from src.general_utils import util_path
+from src.general_utils import util_data
 
-RUN_NAME_FORMAT = ("{data_name}-" "{framework}-" "{phase}-" "{timestamp}")
-
-def make_run_name(format, data_name, framework, phase):
-    return format.format(data_name=data_name,
-                         framework=framework,
-                         phase=phase,
-                         timestamp=datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
 def get_parser():
 
     parser = argparse.ArgumentParser(description='Train CNN')
@@ -61,7 +56,9 @@ if __name__ == "__main__":
     n_channels = cfg['DATA']['img_channels']
     n_classes = cfg['DATA']['num_classes']
     model_name = cfg['MODEL']['name']
+    task_name = cfg['MODEL']['task']
     batch_size = cfg['TRAINER']['batch_size']
+    img_size = cfg['DATA']['img_size']
     weighted_loss = True
 
     # Device.
@@ -75,13 +72,9 @@ if __name__ == "__main__":
         device = torch.device('cpu')
 
     # Files and Directories.
-    run_name = make_run_name(
-        RUN_NAME_FORMAT,
-        data_name=dataset_name,
-        framework=model_name,
-        phase="train"
-    )
-    report_dir = os.path.join(save_dir, 'backbone', run_name)
+    filename = f'{model_name}__{task_name}'
+
+    report_dir = os.path.join(save_dir, 'backbone', filename)
     util_path.create_dir(report_dir)
 
     # Preparing data.
@@ -95,18 +88,44 @@ if __name__ == "__main__":
                             resizer=cfg['PRE']['pre_resizer'],
                             random_flip=cfg['PRE']['apply_rflip'],
                             normalize=cfg['PRE']['normalize'],
-                            cfgs=cfg)  for step in ["train", "val", "test"]
+                            hdf5_path=os.path.join(cfg['DATA']['hdf5'], f'{dataset_name}_{img_size}_{step}.hdf5') if cfg['DATA']['hdf5'] is not None else None,
+                            load_data_in_memory=cfg['DATA']['load_data_in_memory'],
+                            cfgs=cfg) for step in ["train", "val", "test"]
     }
 
-    n_samples = len(datasets['train'])
+    if model_name in ["InceptionV3_torch", "ResNet50_torch", "ResNet18_torch"]:
+        datasets = {
+            step: util_data.ImageNetDataset(copy.deepcopy(datasets[step]), model_name=model_name) for step in ["train", "val", "test"]
+        }
+        if dataset_name == 'AIforCOVID':
+            datasets_data_train = datasets['train'].dataset
+        elif dataset_name in ['pneumoniamnist', 'breastmnist', 'retinamnist']:
+            datasets_data_train = datasets['train'].dataset.data
+        else:
+            raise NotImplementedError
+    else:
+        if dataset_name == 'AIforCOVID':
+            datasets_data_train = copy.deepcopy(['train'])
+        elif dataset_name in ['pneumoniamnist', 'breastmnist', 'retinamnist']:
+            datasets_data_train = datasets['train'].data
+        else:
+            raise NotImplementedError
 
-    idx_to_class = datasets['test'].data.info['label']
-    idx_to_class = {int(k): v for k, v in idx_to_class.items()}
-    class_to_idx = {v: k for k, v in idx_to_class.items()}
-    classes = [idx_to_class[i] for i in range(len(idx_to_class))]
+    n_samples = len(datasets['train'])
+    if dataset_name == 'AIforCOVID':
+        classes = cfg['DATA']['classes']
+        class_to_idx = {c: i for i, c in enumerate(sorted(classes))}
+        idx_to_class = {i: c for c, i in class_to_idx.items()}
+    elif dataset_name in ['pneumoniamnist', 'breastmnist', 'retinamnist']:
+        idx_to_class = datasets_data_train.info['label']
+        class_to_idx = {c: i for i, c in idx_to_class.items()}
+        classes = [idx_to_class[i] for i in range(len(idx_to_class))]
+    else:
+        raise NotImplementedError
+
     weight = [
-        len(datasets['train'].data) / (
-                    len(classes) * len(datasets['train'].data.labels[datasets['train'].data.labels == class_to_idx[c]]))
+        len(datasets_data_train) / (
+                len(classes) * len(datasets_data_train.labels[datasets_data_train.labels == class_to_idx[c]]))
         for c in classes
     ]
 
@@ -117,24 +136,36 @@ if __name__ == "__main__":
     }
 
     # Model.
-    print('==> Building and training model...')
-    model = ResNet50(input_channels=n_channels, num_classes=n_classes)
+    print('Building and training model.')
+    if model_name == 'ResNet50_torch':
+        model = torch.hub.load("pytorch/vision:v0.10.0", 'resnet50', weights='ResNet50_Weights.DEFAULT')
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, n_classes)
+    elif model_name == 'InceptionV3_torch':
+        model = torch.hub.load("pytorch/vision:v0.10.0", 'inception_v3', weights='Inception_V3_Weights.DEFAULT')
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, n_classes)
+    elif model_name == 'ResNet18_torch':
+        model = torch.hub.load("pytorch/vision:v0.10.0", 'resnet18', weights='ResNet18_Weights.DEFAULT')
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, n_classes)
+    elif model_name == 'ResNet50_custom':
+        model = ResNet50(input_channels=cfg['DATA']['img_channels'], num_classes=n_classes)
+    elif model_name == 'ResNet18_custom':
+        model = ResNet18(input_channels=cfg['DATA']['img_channels'], num_classes=n_classes)
+    else:
+        raise NotImplementedError
 
     model = model.to(device)
-
     # Loss function.
     if weighted_loss:
         criterion = nn.CrossEntropyLoss(weight=torch.Tensor(weight)).to(device)
     else:
         criterion = nn.CrossEntropyLoss().to(device)
-
-    # Optimizer.
     optimizer = optim.Adam(model.parameters(), lr=cfg['TRAINER']['optimizer']['lr'])
-    # LR Scheduler.
     scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode=cfg['TRAINER']['scheduler']['mode'], patience=cfg['TRAINER']['scheduler']['patience'])
 
     # Train model.
-    results = collections.defaultdict(lambda: [])
     model, history = util_cnn.train_model(
         model=model,
         data_loaders=data_loaders,
@@ -147,21 +178,20 @@ if __name__ == "__main__":
         model_dir=report_dir,
         device=device,
         n_samples=n_samples,
+        transfer_learning_inception_v3 = True if model_name == 'InceptionV3_torch' else False
     )
 
-    # Plot Training.
+    results = collections.defaultdict(lambda: [])
     util_cnn.plot_training(history=history, plot_training_dir=report_dir)
-
-    # Test model.
-    test_results = util_cnn.evaluate(dataset_name=dataset_name, model=model, data_loader=data_loaders['test'], device=device, n_classes=n_classes, metric_names=['recall', 'precision', 'f1_score'])
-
-    # Update report.
+    test_results = util_cnn.evaluate(model=model, data_loader=data_loaders['test'], idx_to_class=idx_to_class, device=device)
     results["ACC"].append(test_results['all'])
     for c in classes:
         results["ACC %s" % str(c)].append(test_results[c])
     results['recall'].append(test_results['recall'])
     results['precision'].append(test_results['precision'])
+    results['specificity'].append(test_results['specificity'])
     results['f1_score'].append(test_results['f1_score'])
+    results['g_mean'].append(test_results['g_mean'])
 
     # Save Results
     report_file = os.path.join(report_dir, 'results.xlsx')
