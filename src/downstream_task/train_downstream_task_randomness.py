@@ -37,7 +37,7 @@ def get_parser():
 
     parser = argparse.ArgumentParser(description='Train CNN')
 
-    parser.add_argument("-cfg", "--cfg_file", type=str, default="./src/configs_downstream_task/AIforCOVID.yaml")
+    parser.add_argument("-cfg", "--cfg_file", type=str, default="./src/configs_downstream_task/")
     parser.add_argument("-save", "--save_dir", type=str, default="./")
     parser.add_argument('--gpu_ids', type=str, default=1, help='gpu ids: e.g. 0  use -1 for CPU')
     parser.add_argument("--num_workers", type=int, default=8)
@@ -48,7 +48,7 @@ def get_parser():
 
     # GANs params.
     parser.add_argument('--init_w', type=str, default='uniform', choices=['uniform', 'random', 'fid'], help='Weight initialization')
-    parser.add_argument('--samples_dir', type=str, default='./reports/AIforCOVID',  help='Directory name to fake samples.')
+    parser.add_argument('--samples_dir', type=str, default='./reports/',  help='Directory name to fake samples.')
     parser.add_argument('--gan_models', type=util_general.parse_comma_separated_list, default='StyleGAN2', help='List of GANs to enable in the ensemble')
     parser.add_argument('--gan_steps', type=util_general.parse_comma_separated_list, default='100000', help='Epoch or Epochs to sample each GAN')
     parser.add_argument('--n_times', type=int, default=1, help='Number of times of training real dataset.')
@@ -145,7 +145,7 @@ if __name__ == "__main__":
         weight = [
             len(datasets_real['train']) / (len(classes) * len(datasets_real['train'].labels[datasets_real['train'].labels == class_to_idx[c]])) for c in classes
         ]
-    elif dataset_name in ['pneumoniamnist', 'breastmnist', 'retinamnist']:
+    elif dataset_name in ['pneumoniamnist', 'breastmnist', 'retinamnist', 'organamnist']:
         n_samples = len(datasets_real['train'].data)
         idx_to_class = datasets_real['test'].data.info['label']
         idx_to_class = {int(k): v for k, v in idx_to_class.items()}

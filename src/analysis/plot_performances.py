@@ -41,12 +41,12 @@ rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 rc('text', usetex=True)
 
 # Parameters
-dataset_name =  'breastmnist' # 'pneumoniamnist'
+dataset_name = 'AIforCOVID' #'retinamnist' 'pneumoniamnist' 'breastmnist'
 foldername = 'downstream_task_competitors'
 reports_dir = os.path.join('./reports', dataset_name, foldername)
 gan_models = ['MHGAN','SNGAN','StyleGAN2-D2DCE','ReACGAN-ADA','ReACGAN-ADC','ReACGAN-DiffAug','ACGAN-Mod','ReACGAN','BigGAN-DiffAug','BigGAN-Info','StyleGAN2-DiffAug','ACGAN-Mod-TAC','BigGAN','ReACGAN-TAC','BigGAN-ADA','StyleGAN2-Info','ACGAN-Mod-ADC','StyleGAN2-ADA','ReACGAN-Info','StyleGAN2','ContraGAN','SAGAN']
 gan_steps = ['20000', '40000', '60000', '80000', '100000']
-metric_name = 'f1_score'
+metric_name = 'g_mean'
 
 # Results dictionary.
 data = {
@@ -171,7 +171,10 @@ data = {k: np.concatenate(data[k]) for k in list(data.keys())}
 df = pd.DataFrame(data=data)
 
 # Drop some the rows.
-#df = df[~df.exp_name.str.contains('Random')]
+df = df[~df.exp_name.str.contains('Random')]
+# Drop naive models and steps.
+df = df[~df.exp_name.str.contains('Naive steps')]
+df = df[~df.exp_name.str.contains('Naive models')]
 
 # Turn the columns n to int.
 df['n'] = df['n'].astype(int)
@@ -197,7 +200,7 @@ for name_obj in ['dc_inter', 'fid_inter', 'dc_inter__dc_intra', 'fid_inter__fid_
     ax1.axhline(mean_gan, color='r', linestyle='--', label=f'Mean {metric_name}')
     ax1.set_ylabel(metric_name)
     ax1.set_xlabel('Experiments')
-    ax1.tick_params(axis='x', rotation=90)
+    ax1.tick_params(axis='x', rotation=45)
 
     # Secondary axis for the number of GANs
     ax2 = ax1.twinx()

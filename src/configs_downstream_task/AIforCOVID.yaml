@@ -1,0 +1,40 @@
+SEED: 42
+DATA:
+  name: "AIforCOVID"
+  img_size: 128
+  num_classes: 2
+  img_channels: 1
+  fold_dir: ./data/processed/AIforCOVID/hold_out/42ù
+  data_dir: ./data/raw/AIforCOVID
+  resizer_library: "PIL_LANCZOS"
+  clahe:
+  classes: # name of classes
+    - MILD
+    - SEVERE
+  modes:
+    img:
+      img_dir: ./data/raw/AIforCOVID/imgs # path of img directory
+      mask_dir: #./data/raw/AIforCOVID/masks  # None -> no lung
+      box_file: #./data/processed/AIforCOVID/box_data.xlsx  # None -> no bounding box
+      norm_range:  '-1,1'
+  hdf5: ./data/processed/AIforCOVID/
+  load_data_in_memory: True
+PRE:
+  crop_long_edge: True
+  resize_size: 32
+  pre_resizer: "lanczos"
+  normalize: True
+  apply_rflip: False
+MODEL:
+  name: resnet18
+TRAINER:
+  batch_size: 64
+  optimizer:
+    lr: 0.001 # initial learning rate
+    weight_decay: 0.00001 # weight decay
+  scheduler: # allow to change learning rate during training
+    mode: min
+    patience: 5 # if the validation loss do not improve for x epochs, the scheduler reduces the learning rate (lr*10^-1)
+  early_stopping: 25 # if the validation loss do not improve for x epochs stop training
+  warmup_epoch: 25 # number of epochs to warmup
+  max_epochs: 100

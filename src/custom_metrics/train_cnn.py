@@ -99,14 +99,14 @@ if __name__ == "__main__":
         }
         if dataset_name == 'AIforCOVID':
             datasets_data_train = datasets['train'].dataset
-        elif dataset_name in ['pneumoniamnist', 'breastmnist', 'retinamnist']:
+        elif dataset_name in ['pneumoniamnist', 'breastmnist', 'retinamnist', 'organamnist']:
             datasets_data_train = datasets['train'].dataset.data
         else:
             raise NotImplementedError
     else:
         if dataset_name == 'AIforCOVID':
             datasets_data_train = copy.deepcopy(['train'])
-        elif dataset_name in ['pneumoniamnist', 'breastmnist', 'retinamnist']:
+        elif dataset_name in ['pneumoniamnist', 'breastmnist', 'retinamnist', 'organamnist']:
             datasets_data_train = datasets['train'].data
         else:
             raise NotImplementedError
@@ -116,9 +116,10 @@ if __name__ == "__main__":
         classes = cfg['DATA']['classes']
         class_to_idx = {c: i for i, c in enumerate(sorted(classes))}
         idx_to_class = {i: c for c, i in class_to_idx.items()}
-    elif dataset_name in ['pneumoniamnist', 'breastmnist', 'retinamnist']:
+    elif dataset_name in ['pneumoniamnist', 'breastmnist', 'retinamnist', 'organamnist']:
         idx_to_class = datasets_data_train.info['label']
-        class_to_idx = {c: i for i, c in idx_to_class.items()}
+        idx_to_class = {int(k): v for k, v in idx_to_class.items()}
+        class_to_idx = {v: k for k, v in idx_to_class.items()}
         classes = [idx_to_class[i] for i in range(len(idx_to_class))]
     else:
         raise NotImplementedError

@@ -33,7 +33,7 @@ def get_parser():
     parser = argparse.ArgumentParser(description='Ensemble search.')
 
     parser.add_argument('--source_dir', type=str, default='./reports/AIforCOVID', help='Directory name to fake samples.')
-    parser.add_argument('--dataset_name', type=str, default='AIforCOVID',  choices=['retinamnist', 'pneumoniamnist', 'breastmnist'], help='The name of dataset')
+    parser.add_argument('--dataset_name', type=str, default='AIforCOVID',  choices=['retinamnist', 'pneumoniamnist', 'breastmnist', 'AIforCOVID', 'organamnist'], help='The name of dataset')
     parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
     # GANs params.
     #parser.add_argument('--gan_models', type=util_general.parse_comma_separated_list, default='MHGAN,SNGAN,StyleGAN2-D2DCE,ReACGAN-ADA,ReACGAN-ADC,ReACGAN-DiffAug,ACGAN-Mod,ReACGAN,BigGAN-DiffAug,BigGAN-Info,StyleGAN2-DiffAug,ACGAN-Mod-TAC,BigGAN,ReACGAN-TAC,BigGAN-ADA,StyleGAN2-Info,ACGAN-Mod-ADC,StyleGAN2-ADA,ReACGAN-Info,StyleGAN2,ContraGAN,SAGAN', help='List of GANs to enable in the ensemble') #ACGAN-Mod-ADC,SAGAN,ReACGAN-ADA,StyleGAN2-DiffAug,StyleGAN2  # MHGAN,SNGAN,StyleGAN2-D2DCE,ReACGAN-ADA,ReACGAN-ADC,ReACGAN-DiffAug,ACGAN-Mod,ReACGAN,BigGAN-DiffAug,BigGAN-Info,StyleGAN2-DiffAug,ACGAN-Mod-TAC,BigGAN,ReACGAN-TAC,BigGAN-ADA,StyleGAN2-Info,ACGAN-Mod-ADC,StyleGAN2-ADA,ReACGAN-Info,StyleGAN2,ContraGAN,SAGAN

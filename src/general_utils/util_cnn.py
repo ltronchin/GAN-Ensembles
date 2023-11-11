@@ -102,7 +102,6 @@ def train_model(model, data_loaders, criterion, optimizer, scheduler, num_epochs
                     if phase=='train' and n_samples is not None:
                         if current_samples > n_samples:
                             break
-
                     inputs = inputs.to(device)
                     labels = labels.to(device)
                     # zero the parameter gradients

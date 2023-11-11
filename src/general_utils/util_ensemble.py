@@ -39,10 +39,6 @@ def extract_best_trial(ensemble_dir, name_obj, study):
     else:
         raise NotImplementedError
 
-    # Convert best_trials to Dataframe and save.
-    best_trials_df = study.trials_dataframe()
-    best_trials_df.to_excel(os.path.join(ensemble_dir, f"best_trials.xlsx"), index=False)
-
     with open(os.path.join(ensemble_dir, f"best_trials.txt"), 'w') as f:
         f.write(f"\nNumber: {best_trials.number}")
         f.write(f"\nParams: {[x for x in best_trials.params if best_trials.params[x] == 1]}")

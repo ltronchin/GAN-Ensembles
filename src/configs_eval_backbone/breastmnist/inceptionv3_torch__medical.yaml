@@ -1,0 +1,30 @@
+SEED: 42
+DATA:
+  data_dir: ./data/raw/breastmnist
+  name: "breastmnist"
+  img_size: 32
+  num_classes: 2
+  img_channels: 1
+  hdf5:
+  load_data_in_memory: False
+PRE:
+  crop_long_edge: True
+  resize_size: 32
+  pre_resizer: "lanczos"
+  normalize: True
+  apply_rflip: False
+
+MODEL:
+  name: InceptionV3_torch
+  task: medical
+
+TRAINER:
+  batch_size: 64
+  optimizer:
+    lr: 0.001 # initial learning rate
+  scheduler: # allow to change learning rate during training
+    mode: min
+    patience: 10 # if the validation loss do not improve for x epochs, the scheduler reduces the learning rate (lr*10^-1)
+  early_stopping: 20 # if the validation loss do not improve for x epochs stop training
+  warmup_epoch: 20 # number of epochs to warmup
+  max_epochs: 100

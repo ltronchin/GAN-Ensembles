@@ -32,3 +32,4 @@ bokeh
 umap-learn
 torchmetrics
 python-gdcm
+paretoset

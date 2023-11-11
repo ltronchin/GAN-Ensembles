@@ -40,3 +40,4 @@ dependencies:
     - umap-learn
     - torchmetrics
     - python-gdcm
+    - paretoset

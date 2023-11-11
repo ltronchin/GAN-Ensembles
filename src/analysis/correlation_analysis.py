@@ -21,28 +21,28 @@ def plot_scatter(bck1, bck2, data, metric_name):
     plt.grid(True)
 
 # For aspect ratio 4:3.
-# column_width_pt = 516.0
-# pt_to_inch = 1 / 72.27
-# column_width_inches = column_width_pt * pt_to_inch
-# aspect_ratio = 4 / 3
-# sns.set(style="whitegrid", font_scale=1.6, rc={"figure.figsize": (column_width_inches, column_width_inches / aspect_ratio)})
-sns.set_context("paper")
-sns.set_theme(style="ticks")
+column_width_pt = 516.0
+pt_to_inch = 1 / 72.27
+column_width_inches = column_width_pt * pt_to_inch
+aspect_ratio = 4 / 3
+sns.set(style="whitegrid", font_scale=1.6, rc={"figure.figsize": (column_width_inches, column_width_inches / aspect_ratio)})
+# sns.set_context("paper")
+# sns.set_theme(style="ticks")
 # # For Latex.
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 rc('text', usetex=True)
 
 # Parameters.
 reports_dir = './reports/'
-dataset_name =  'pneumoniamnist' #'breastmnist' # 'retinamnist' # 'pneumoniamnist'
+dataset_name =  'pneumoniamnist' #'breastmnist' 'retinamnist' 'pneumoniamnist' 'AIforCOVID'
 
-fitness_name = 'f1_prc_rec' # 'fid' # 'f1_prc_rec' # 'f1_dns_cvg'
+fitness_name = 'f1_dns_cvg' # 'fid' # 'f1_prc_rec' # 'f1_dns_cvg'
 eval_backbones = ['InceptionV3_torch', 'ResNet50_torch', 'SwAV_torch', 'InceptionV3_torch__medical', 'ResNet50_torch__medical']
 post_resizer = 'friendly'
-analysis_name = 'inter' # 'inter' # 'intra'
+analysis_name = 'intra' # 'inter' # 'intra'
 split = 'train'
 
-n_samples = '4708' # '546' # '1080' # '4708'
+n_samples = '4708' # '546' '1080' '4708' '664'
 
 reports_dir = os.path.join(reports_dir, dataset_name, 'features')
 
@@ -112,7 +112,9 @@ for backbone1 in eval_backbones_label:
 
 # Convert corr to float64
 corr = corr.astype(np.float64)
-
+# Modify the name SwAV to SwAV (DGE) on both axes.
+corr = corr.rename(columns={'SwAV': 'SwAV (DGE)'})
+corr = corr.rename(index={'SwAV': 'SwAV (DGE)'})
 # Plotting the heatmap
 fig = plt.figure()
 #mask = np.triu(np.ones_like(corr, dtype=bool))
